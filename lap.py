@@ -42,13 +42,17 @@ class Lap():
         self._load_ac_data(tRange, acDtype)
         self._match_lat_lag(tRange)
 
+        fig, ax = plt.subplots(3)
+        self._plot_fb(tRange, ax[0])
+
+
         return
 
     def _load_fb_data(self, tRange):
         """ This method loads in the FIREBIRD-II data """
         hrName = 'FU{}_Hires_{}_L2.txt'.format(self.fb_id, tRange[0].date())
         self.hr = spacepy.datamodel.readJSONheadedASCII(
-                            os.path.join(self.fbDir, hrName)).copy()
+                            os.path.join(self.fbDir, hrName))#.copy()
         self.hr["Time"] = spacepy.time.Ticktock(self.hr["Time"]).UTC
         self.fb_time_shift = np.mean(self.hr['Count_Time_Correction'])
         # self.hr['shifted_time'] = np.array([t + timedelta(seconds=self.fb_time_shift)
@@ -69,13 +73,30 @@ class Lap():
         of the interval to check if there were substantial 
         differences in the time lags.
         """
-        # Find the first order correction
+        # Find the first order correction (unsigned)
         sepInd = np.where(self.sep['dateTime'] > tRange[0])[0][0]
         self.ac_time_lag = self.sep['d'][sepInd]/7.5
-
-        # Now find the higher order correction.
+        # Determine the sign of self.ac_time_lag
+        dLatPast = np.where(self.acData['dateTime'] > 
+                    tRange[0] - timedelta(seconds=self.ac_time_lag))[0][0]
+        dLatFuture = np.where(self.acData['dateTime'] > 
+                    tRange[0] + timedelta(seconds=self.ac_time_lag))[0][0]
         fbSind = np.where(self.hr['Time'] > tRange[0])[0][0]
-        print(self.hr['Time'][fbSind])
+        pastDiff = np.abs(self.hr['Lat'][fbSind]-self.acData['lat'][dLatPast])
+        futureDiff = np.abs(self.hr['Lat'][fbSind]-self.acData['lat'][dLatFuture])
+        if pastDiff > futureDiff:
+            self.ac_time_lag *= -1
+            acInd = dLatPast
+        else:
+            acInd = dLatFuture
+        
+        # Now find the higher order correction (signed)
+        self.ac_time_lag = ( self.hr['Time'][fbSind] - 
+            self.acData['dateTime'][acInd] ).total_seconds()
+        
+        print(self.hr['Lat'][fbSind], self.acData['lat'][dLatPast], 
+                    self.acData['lat'][dLatFuture])
+
         return
 
     def _load_sep(self, fPath):
@@ -90,6 +111,20 @@ class Lap():
         self.sep['dateTime'] = np.array([dateutil.parser.parse(t) for t in rData[:, 0]])
         self.sep['d'] = np.array([float(f) for f in rData[:, 1]])
         return
+
+    def _plot_fb(self, tRange, ax):
+        """ This method plots the FIREBIRD col counts data. """
+        normTind = np.where((self.hr['Time'] > tRange[0]) & 
+                            (self.hr['Time'] < tRange[1]))[0]
+        shiftInd = np.where(
+            (self.hr['Time'] > tRange[0]-timedelta(seconds=self.fb_time_shift)) & 
+            (self.hr['Time'] < tRange[1]-timedelta(seconds=self.fb_time_shift)))[0]
+        for E, Elabel in enumerate(self.hr['Col_counts'].attrs['ELEMENT_LABELS']):
+            ax.plot(self.hr['Time'][normTind], self.hr['Col_counts'][shiftInd, E],
+                    label=Elabel)
+        ax.set(ylabel='FU{} counts/bin'.format(self.fb_id), yscale='log')
+        return
+
 
 lapDict = {'0319T0104':{'tRange':[datetime(2018, 3, 19, 1, 4, 30), 
                                 datetime(2018, 3, 19, 1, 6, 0)],
@@ -108,9 +143,7 @@ lapDict = {'0319T0104':{'tRange':[datetime(2018, 3, 19, 1, 4, 30),
 if __name__ == '__main__':
     fb_id = 3
     ac_id = 'A'
-    dPath = '2018-02-26_2018-03-29_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
+    dPath = './data/2018-02-26_2018-03-29_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
     lapTime = '0326T0213'
-    le = LappingEvents(dPath, fb_id, ac_id)
-    le.make_plot(lapDict[lapTime]['tRange'], reverse=False, 
-                    latYlim=lapDict[lapTime]['latYlim'], 
-                    lonYlim=lapDict[lapTime]['lonYlim'])
+    l = Lap(dPath, fb_id, ac_id)
+    l.plot_lap_event(lapDict[lapTime]['tRange'])
