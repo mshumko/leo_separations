@@ -1,1 +1,4 @@
-./plots/*
+/plots/*.png
+/plots/10hz/*.png
+/plots/survey/*.png
+/plots/*

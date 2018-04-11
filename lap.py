@@ -152,7 +152,7 @@ class Lap():
             axPos.set_ylabel('Longitude [deg]')
         if axL:
             axL = axCounts.twinx()
-            axL.plot(self.hr['Time'][normTind], self.hr['McIlwainL'][normTind], 'k')
+            axL.plot(self.hr['Time'], np.abs(self.hr['McIlwainL']), 'k')
             axL.set_ylabel('McIlwain L (T89) (black curve)')
             axL.set_ylim(3, 10)
         return
@@ -170,6 +170,8 @@ class Lap():
             axCounts.plot(self.acData['dateTime'][validCounts], 
                         self.acData[key][validCounts],
                         label=key)
+        axCounts.set_yscale('log')
+        axCounts.legend()
         # Plot position
         if axPos is not None:
             shiftedTimes = np.array([timedelta(seconds=-self.ac_time_lag) + t
@@ -185,29 +187,68 @@ class Lap():
         
         return
 
+def getLapTimes(fb_id, ac_id):
+    if fb_id == 3 and ac_id == 'A':
+        lapTimes = {
+                # March 19th
+                '20180319T0048':{'tRange':[datetime(2018, 3, 19, 0, 48, 41), 
+                                        datetime(2018, 3, 19, 0, 54, 0)]
+                                        },
+                '20180319T0104':{'tRange':[datetime(2018, 3, 19, 1, 3, 30), 
+                                        datetime(2018, 3, 19, 1, 6, 0)]
+                                        },
+                # March 25th
+                '20180325T0105':{'tRange':[datetime(2018, 3, 25, 1, 5, 51), 
+                                        datetime(2018, 3, 25, 1, 8, 30)]
+                                        },
+                # March 26th
+                '20180326T0038':{'tRange':[datetime(2018, 3, 26, 0, 38, 0), 
+                                        datetime(2018, 3, 26, 0, 44, 0)]
+                                        },
+                '20180326T0051':{'tRange':[datetime(2018, 3, 26, 0, 52, 0), 
+                                        datetime(2018, 3, 26, 0, 53, 30)]
+                                        },
+                '20180326T0213':{'tRange':[datetime(2018, 3, 26, 2, 13), 
+                                        datetime(2018, 3, 26, 2, 17)]
+                                        },
+                '20180326T0348':{'tRange':[datetime(2018, 3, 26, 3, 48, 25), 
+                                        datetime(2018, 3, 26, 3, 52)]
+                                        },
+                # # March 28th
+                # '0328T1257':{'tRange':[datetime(2018, 3, 28, 12, 57, 40), 
+                #                         datetime(2018, 3, 28, 13, 1, 40)]
+                #                         },          
+                }         
+    elif fb_id == 4 and ac_id == 'A':
+        lapTimes= {
+                # February 27th
+                '20180227T0942':{'tRange':[datetime(2018, 2, 27, 9, 42),
+                                        datetime(2018, 2, 27, 9, 38, 27)]
+                                },
+                '20180227T1033':{'tRange':[datetime(2018, 2, 27, 10, 33),
+                                        datetime(2018, 2, 27, 10, 35, 27)]
+                                },
+                # March 1st
+                '20180301T1919':{'tRange':[datetime(2018, 3, 1, 19, 19),
+                                        datetime(2018, 3, 1, 19, 24, 0)]
+                                }
 
-lapDict = {'0319T0104':{'tRange':[datetime(2018, 3, 19, 1, 4, 30), 
-                                datetime(2018, 3, 19, 1, 6, 0)],
-                        'latYlim':(55, 65), 'lonYlim':(-43, -30)},
-           '0326T0213':{'tRange':[datetime(2018, 3, 26, 2, 13), 
-                                datetime(2018, 3, 26, 2, 18)],
-                                'latYlim':None, 'lonYlim':None},
-           '0326T0348':{'tRange':[datetime(2018, 3, 26, 3, 50, 25), 
-                                datetime(2018, 3, 26, 3, 52)],
-                                'latYlim':None, 'lonYlim':None},
-           '0326T0051':{'tRange':[datetime(2018, 3, 26, 0, 52, 0), 
-                                datetime(2018, 3, 26, 0, 53, 30)],
-                                'latYlim':None, 'lonYlim':None}                    
-          }        
+                }
+    else:
+        raise NotImplementedError('No times dict for this spacecraft selection!')
+    return lapTimes
 
 if __name__ == '__main__':
+    acDtype = '10Hz'
     fb_id = 3
     ac_id = 'A'
     dPath = './data/2018-02-26_2018-03-29_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
-    lapTime = '0326T0213'
 
-    l = Lap(dPath, fb_id, ac_id)
-    l.plot_lap_event(lapDict[lapTime]['tRange'], acDtype='survey')
+    for lapTime, value in getLapTimes(fb_id, ac_id).items():
+        print('Making plot for', lapTime)
+        l = Lap(dPath, fb_id, ac_id)
+        l.plot_lap_event(value['tRange'], acDtype=acDtype)
 
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        plt.savefig('./plots/{}_FU{}-AC6{}_{}_lap_event.png'.format(lapTime, fb_id, ac_id, acDtype))
+        #plt.show()
