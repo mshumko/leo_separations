@@ -13,7 +13,7 @@ sys.path.append('/home/mike/research/mission-tools/ac6/')
 import read_ac_data
 
 Re=6371 # km
-FB_ID = '3'
+FB_ID = '4'
 AC_ID = 'A'
 DATE_RANGE = [datetime(2018, 4, 11), datetime(2018, 6, 11)]
 
@@ -72,6 +72,8 @@ def load_daily_ac6_ephem():
     data['lat'] = np.array([])
     data['lon'] = np.array([])
     data['alt'] = np.array([])
+    data['Lm_OPQ'] = np.array([])
+    data['MLT_OPQ'] = np.array([])
 
     days = [DATE_RANGE[0] + timedelta(t) for t in 
             range((DATE_RANGE[1] - DATE_RANGE[0]).days+1)]
@@ -88,9 +90,11 @@ def load_daily_ac6_ephem():
         data['lat'] = np.append(data['lat'], rawAc['lat'])
         data['lon'] = np.append(data['lon'], rawAc['lon'])
         data['alt'] = np.append(data['alt'], rawAc['alt'])
+        data['Lm_OPQ'] = np.append(data['Lm_OPQ'], rawAc['Lm_OPQ'])
+        data['MLT_OPQ'] = np.append(data['MLT_OPQ'], rawAc['MLT_OPQ'])
     return data
 
-def save_dist(times, dists, fPath):
+def save_dist(times, dists, L_AC, L_FB, MLT_AC, MLT_FB, fPath):
     """
     given a time array t and distance array d, this function saves that data
     to a csv file given by fPath.
@@ -98,19 +102,19 @@ def save_dist(times, dists, fPath):
 
     with open(fPath, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['dateTime', 'distance [km]'])
+        w.writerow(['dateTime', 'distance [km]', 'L_AC6{}'.format(AC_ID), 
+                    'L_FU{}'.format(FB_ID), 'MLT_AC6{}'.format(AC_ID), 
+                    'MLT_FU{}'.format(FB_ID)])
 
-        for (t, d) in zip(times, dists):
-            w.writerow([t, d])
+        for z in zip(times, dists, L_AC, L_FB, MLT_AC, MLT_FB):
+            w.writerow([*z])
 
 
 ### Load FIREBIRD coordinates ###
-fbPath = ('/home/mike/research/mission-tools/orbit/data/'
-          'FU{}_{}_{}_LLA_ephemeris_pre.csv'.format(FB_ID, DATE_RANGE[0].date(), 
-        (DATE_RANGE[1]).date()))
-acPath = ('/home/mike/research/mission-tools/orbit/data/'
-          'AEROCUBE_6{}_{}_{}_LLA_ephemeris_pre.csv'.format(AC_ID, DATE_RANGE[0].date(), 
-        (DATE_RANGE[1]).date()))
+fbPath = ('./data/FU{}_{}_{}_LLA_magephem_pre.csv'.format(
+        FB_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
+acPath = ('./data/AEROCUBE_6{}_{}_{}_LLA_magephem_pre.csv'.format(
+            AC_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
 
 fb = load_ephem(fbPath)
 ac = load_ephem(acPath)
@@ -130,7 +134,9 @@ X2 = np.array([fb['Lat (deg)'][fbInd], fb['Lon (deg)'][fbInd], fb['Alt (km)'][fb
 d = greatCircleDist(X1, X2)
 
 ### Save distance data ###
-save_dist(fb['dateTime'][fbInd], d, 
+save_dist(fb['dateTime'][fbInd], d, ac['Lm_T89'][acInd], 
+            fb['Lm_T89'][fbInd], ac['MLT_T89'][acInd], 
+            fb['MLT_T89'][fbInd],
             '/home/mike/research/leo-lapping-events/data/'
             '{}_{}_FU{}_AC6{}_dist.csv'.format(
             fb['dateTime'][fbInd[0]].date(), 
@@ -138,14 +144,17 @@ save_dist(fb['dateTime'][fbInd], d,
             FB_ID, AC_ID))
 
 ### Make the distance plot ###
-fig, ax = plt.subplots(figsize=(10, 8))
-ax_t = ax.twinx()
+fig, ax = plt.subplots(2, figsize=(10, 8), sharex=True)
+ax_t = ax[0].twinx()
 
-ax.plot(fb['dateTime'][fbInd], d)
+ax[0].plot(fb['dateTime'][fbInd], d)
 ax_t.plot(fb['dateTime'][fbInd], d/7.5) # Assuming a 7.5 km/s orbital velocity
 ax_t.set_ylabel('In-track lag [s] (assuming no cross-track)')
-ax.set_title('{}-{} | FU{}-AC6{} total separation'.format(
+ax[0].set_title('{}-{} | FU{}-AC6{} total separation'.format(
     DATE_RANGE[0].date(), DATE_RANGE[1].date(), FB_ID, AC_ID))
-ax.set_xlabel('UTC')
-ax.set_ylabel('Separation [km]')
+ax[0].set_xlabel('UTC')
+ax[0].set_ylabel('Separation [km]')
+
+ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_T89'][acInd]-fb['Lm_T89'][fbInd]))
+ax[1].set(ylabel='dL', ylim=(0, 3))
 plt.show()

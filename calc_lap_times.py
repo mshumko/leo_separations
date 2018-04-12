@@ -4,7 +4,8 @@ import numpy as np
 import csv
 
 class LapTimes:
-    def __init__(self, sepPath):
+    def __init__(self, fb_id, sepPath):
+        self.fb_id = fb_id
         self.sepData = self._load_sep(sepPath)
         return     
 
@@ -28,10 +29,11 @@ class LapTimes:
     def saveData(self, fPath):
         with open(fPath, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['lapStartTime', 'lapEndTime', 'minDist [km]'])
+            w.writerow(['lapStartTime', 'lapEndTime', 'minDist [km]', 
+                        'FU{}_L_at_min'.format(self.fb_id), 'AC6A_L_at_min'])
 
-            for (sT, eT, dMin) in zip(self.startTime, self.endTime, self.dmin):
-                w.writerow([sT, eT, dMin])
+            for z in zip(self.startTime, self.endTime, self.dmin, self.FBLmin, self.AC6Lmin):
+                w.writerow([*z])
             return
 
     def _calc_min_sep(self, startInd, endInd):
@@ -39,11 +41,17 @@ class LapTimes:
         For each lapping event, this method calculates the closest separation.
         """
         self.dmin = np.nan*np.zeros(len(startInd))
+        self.AC6Lmin = np.nan*np.zeros(len(startInd))
+        self.FBLmin = np.nan*np.zeros(len(startInd))
         # To avoid a crash in case there is only one data point below threshold.
         # Should not effect the results.
         endInd += 1 
         for i, (sI, eI) in enumerate(zip(startInd, endInd)):
             self.dmin[i] = np.min(self.sepData['d'][sI:eI])
+            iMin = np.argmin(self.sepData['d'][sI:eI])+sI
+
+            self.AC6Lmin[i] = self.sepData['L_AC6A'][iMin]
+            self.FBLmin[i] = self.sepData['L_FU{}'.format(self.fb_id)][iMin]
         return
 
     def _load_sep(self, path):
@@ -53,14 +61,19 @@ class LapTimes:
             keys = next(r)
             rawData = np.array(list(r))
         sepData = {}
-        sepData['dateTime'] = np.array([dateutil.parser.parse(t)
-                             for t in rawData[:, 0]])
-        sepData['d'] = np.array([float(d) for d in rawData[:, 1]])  
+        for (i, key) in enumerate(keys):
+            if key == 'dateTime':
+                sepData['dateTime'] = np.array([dateutil.parser.parse(t)
+                                for t in rawData[:, i]])
+            elif 'distance' in key:
+                sepData['d'] = np.array([float(d) for d in rawData[:, i]])  
+            else:
+                sepData[key] = np.array([float(d) for d in rawData[:, i]]) 
         return sepData
 
 if __name__ == '__main__':
-    fb_id = 4
-    L = LapTimes('/home/mike/research/leo-lapping-events/data/'
+    fb_id = 3
+    L = LapTimes(fb_id, '/home/mike/research/leo-lapping-events/data/'
                 '2018-04-11_2018-06-10_FU{}_AC6A_dist.csv'.format(fb_id))
     L.calcLapTimes()
     L.saveData('./data/FU{}_AC6A_lap_times.csv'.format(fb_id))
