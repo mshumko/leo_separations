@@ -239,8 +239,8 @@ def getLapTimes(fb_id, ac_id):
     return lapTimes
 
 if __name__ == '__main__':
-    acDtype = '10Hz'
-    fb_id = 3
+    acDtype = 'survey'
+    fb_id = 4
     ac_id = 'A'
     dPath = './data/2018-02-26_2018-03-29_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
 
@@ -250,5 +250,5 @@ if __name__ == '__main__':
         l.plot_lap_event(value['tRange'], acDtype=acDtype)
 
         plt.tight_layout()
-        plt.savefig('./plots/{}_FU{}-AC6{}_{}_lap_event.png'.format(lapTime, fb_id, ac_id, acDtype))
+        plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
         #plt.show()
