@@ -17,7 +17,7 @@ class AppendMagEphem(IRBEM.MagFields):
         This code reads in the magnetic ephemeris file.
         """
         with open(path) as f:
-            r = csv.reader(path)
+            r = csv.reader(f)
             keys = next(r)
             rawData = np.array(list(r))
 
@@ -46,11 +46,11 @@ class AppendMagEphem(IRBEM.MagFields):
                 self.eph['Lat'], self.eph['Lon'])
         
         for i, (time, alt, lat, lon) in enumerate(z):
-            X = {'dateTime':time, 'X1':alt, 'X2':lat, 'X3':lon}
+            X = {'dateTime':time, 'x1':alt, 'x2':lat, 'x3':lon}
             self.make_lstar(X, maginput)
 
-            self.L[i] = self.make_lstar_output['Lm']
-            self.MLT[i] = self.make_lstar_output['MLT']
+            self.L[i] = self.make_lstar_output['Lm'][0]
+            self.MLT[i] = self.make_lstar_output['MLT'][0]
         return
 
 if __name__ == '__main__':
