@@ -12,6 +12,13 @@ import csv
 sys.path.append('/home/mike/research/mission-tools/ac6/')
 import read_ac_data
 
+class CalcDist():
+    def __init__(self):
+
+        return
+
+    #def 
+
 Re=6371 # km
 FB_ID = '4'
 AC_ID = 'A'
