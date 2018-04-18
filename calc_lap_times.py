@@ -74,7 +74,7 @@ class LapTimes:
 if __name__ == '__main__':
     fb_id = 3
     L = LapTimes(fb_id, '/home/mike/research/leo-lapping-events/data/'
-                '2018-04-11_2018-06-10_FU{}_AC6A_dist.csv'.format(fb_id))
+                '2018-02-26_2018-03-29_FU{}_AC6A_dist.csv'.format(fb_id))
     L.calcLapTimes()
-    L.saveData('./data/FU{}_AC6A_lap_times.csv'.format(fb_id))
+    L.saveData('./data/FU{}_AC6A_lap_times_camp_14.csv'.format(fb_id))
     

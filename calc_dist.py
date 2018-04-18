@@ -19,12 +19,6 @@ class CalcDist():
 
     #def 
 
-Re=6371 # km
-FB_ID = '4'
-AC_ID = 'A'
-DATE_RANGE = [datetime(2018, 4, 11), datetime(2018, 6, 11)]
-
-
 def greatCircleDist(X1, X2):
     """
     X1 and X2 must be N*3 array of lat, lon, alt. phi = lat, lambda = lon
@@ -118,14 +112,19 @@ def save_dist(times, dists, L_AC, L_FB, MLT_AC, MLT_FB, fPath):
 
 
 ### Load FIREBIRD coordinates ###
-fbPath = ('./data/FU{}_{}_{}_LLA_magephem_pre.csv'.format(
+Re=6371 # km
+FB_ID = '4'
+AC_ID = 'A'
+DATE_RANGE = [datetime(2018, 2, 26), datetime(2018, 3, 31)]
+
+fbPath = ('./data/FU{}_{}_{}_magephem.csv'.format(
         FB_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
-acPath = ('./data/AEROCUBE_6{}_{}_{}_LLA_magephem_pre.csv'.format(
+acPath = ('./data/AEROCUBE_6{}_{}_{}_LLA_magephem.csv'.format(
             AC_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
 
 fb = load_ephem(fbPath)
-ac = load_ephem(acPath)
-#ac = load_daily_ac6_ephem()
+#ac = load_ephem(acPath)
+ac = load_daily_ac6_ephem()
 
 ### Now find the same indicies across both data sets ###
 fbT = date2num(fb['dateTime'])
@@ -135,14 +134,14 @@ fbInd = np.where(np.in1d(fbT, acT))[0]
 acInd = np.where(np.in1d(acT, fbT))[0]
 
 ### Calculate separation ###
-#X1 = np.array([ac['lat'][acInd], ac['lon'][acInd], ac['alt'][acInd]]).T
-X1 = np.array([ac['Lat (deg)'][acInd], ac['Lon (deg)'][acInd], ac['Alt (km)'][acInd]]).T
+X1 = np.array([ac['lat'][acInd], ac['lon'][acInd], ac['alt'][acInd]]).T
+#X1 = np.array([ac['Lat (deg)'][acInd], ac['Lon (deg)'][acInd], ac['Alt (km)'][acInd]]).T
 X2 = np.array([fb['Lat (deg)'][fbInd], fb['Lon (deg)'][fbInd], fb['Alt (km)'][fbInd]]).T
 d = greatCircleDist(X1, X2)
 
 ### Save distance data ###
-save_dist(fb['dateTime'][fbInd], d, ac['Lm_T89'][acInd], 
-            fb['Lm_T89'][fbInd], ac['MLT_T89'][acInd], 
+save_dist(fb['dateTime'][fbInd], d, ac['Lm_OPQ'][acInd], 
+            fb['Lm_T89'][fbInd], ac['MLT_OPQ'][acInd], 
             fb['MLT_T89'][fbInd],
             '/home/mike/research/leo-lapping-events/data/'
             '{}_{}_FU{}_AC6{}_dist.csv'.format(
@@ -162,6 +161,6 @@ ax[0].set_title('{}-{} | FU{}-AC6{} total separation'.format(
 ax[0].set_xlabel('UTC')
 ax[0].set_ylabel('Separation [km]')
 
-ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_T89'][acInd]-fb['Lm_T89'][fbInd]))
+ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_OPQ'][acInd]-fb['Lm_T89'][fbInd]))
 ax[1].set(ylabel='dL', ylim=(0, 3))
 plt.show()

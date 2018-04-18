@@ -72,9 +72,15 @@ class AppendMagEphem(IRBEM.MagFields):
         return
 
 if __name__ == '__main__':
+    from datetime import datetime
+
+    sc_id = 3
+    START_DATE = datetime(2018, 2, 26)
+    END_DATE = datetime(2018, 3, 31)
     ephemDir = '/home/mike/research/mission-tools/orbit/data/'
     # ephemName = 'AEROCUBE_6A_2018-04-11_2018-06-11_LLA_ephemeris_pre.csv'
-    ephemName = 'FU4_2018-04-11_2018-06-11_LLA_ephemeris_pre.csv'
+    ephemName = 'FU{}_{}_{}_LLA_ephemeris.csv'.format(
+                    sc_id, START_DATE.date(), END_DATE.date())
     magephemName = ephemName.split('_')
     magephemName[-2] = 'magephem'
     magephemName = '_'.join(magephemName)
