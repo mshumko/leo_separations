@@ -171,6 +171,7 @@ class Lap():
                         self.acData[key][validCounts],
                         label=key)
         axCounts.set_yscale('log')
+        axCounts.set_ylabel('Dos rate [counts/s]')
         axCounts.legend()
         # Plot position
         if axPos is not None:
@@ -214,6 +215,21 @@ def getLapTimes(fb_id, ac_id):
                 '20180326T0348':{'tRange':[datetime(2018, 3, 26, 3, 48, 25), 
                                         datetime(2018, 3, 26, 3, 52)]
                                         },
+                ### CAMPAIGN 15 ###
+                # April 21st
+                '20180421T1125':{'tRange':[datetime(2018, 4, 21, 11, 25, 0), 
+                                        datetime(2018, 4, 21, 11, 30, 0)]
+                                        },
+                '20180421T1139':{'tRange':[datetime(2018, 4, 21, 11, 38, 0), 
+                                        datetime(2018, 4, 21, 11, 43, 0)]
+                                        },
+                '20180421T1209':{'tRange':[datetime(2018, 4, 21, 12, 9, 0), 
+                                        datetime(2018, 4, 21, 12, 14, 0)]
+                                        },
+                '20180421T1221':{'tRange':[datetime(2018, 4, 21, 12, 21, 0), 
+                                        datetime(2018, 4, 21, 12, 32, 0)]
+                                        },
+
                 # # March 28th
                 # '0328T1257':{'tRange':[datetime(2018, 3, 28, 12, 57, 40), 
                 #                         datetime(2018, 3, 28, 13, 1, 40)]
@@ -240,15 +256,23 @@ def getLapTimes(fb_id, ac_id):
 
 if __name__ == '__main__':
     acDtype = 'survey'
-    fb_id = 4
+    fb_id = 3
     ac_id = 'A'
-    dPath = './data/2018-02-26_2018-03-29_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
+    dPath = './data/2018-04-11_2018-06-10_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
 
-    for lapTime, value in getLapTimes(fb_id, ac_id).items():
-        print('Making plot for', lapTime)
-        l = Lap(dPath, fb_id, ac_id)
-        l.plot_lap_event(value['tRange'], acDtype=acDtype)
+    #for lapTime, value in getLapTimes(fb_id, ac_id).items():
+    #    print('Making plot for', lapTime)
+        # l = Lap(dPath, fb_id, ac_id)
+        # l.plot_lap_event(value['tRange'], acDtype=acDtype)
 
-        plt.tight_layout()
-        plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
+        # plt.tight_layout()
+        # plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
         #plt.show()
+
+    value = getLapTimes(fb_id, ac_id)['20180421T1139']
+    l = Lap(dPath, fb_id, ac_id)
+    l.plot_lap_event(value['tRange'], acDtype=acDtype)
+
+    plt.tight_layout()
+    plt.show()
+    #plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
