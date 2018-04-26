@@ -12,6 +12,8 @@ import csv
 sys.path.append('/home/mike/research/mission-tools/ac6/')
 import read_ac_data
 
+Re=6371 # km
+
 class CalcDist():
     def __init__(self):
 
@@ -26,8 +28,25 @@ def greatCircleDist(X1, X2):
     X1 = np.asarray(X1)
     X2 = np.asarray(X2)
     R = (Re+(X1[:, 2]+X2[:, 2])/2)
-    s = 2*np.arcsin( np.sqrt( np.sin(np.deg2rad(X1[:, 0]-X2[:, 0])/2)**2 + np.cos(np.deg2rad(X1[:, 0]))*np.cos(np.deg2rad(X2[:, 0]))*np.sin(np.deg2rad(X1[:, 1]-X2[:, 1])/2)**2 ))
+    s = 2*np.arcsin( np.sqrt( np.sin(np.deg2rad(X1[:, 0]-X2[:, 0])/2)**2 + \
+                    np.cos(np.deg2rad(X1[:, 0]))*np.cos(np.deg2rad(X2[:, 0]))*\
+                    np.sin(np.deg2rad(X1[:, 1]-X2[:, 1])/2)**2 ))
     return R*s
+
+def calcSep(X1, X2):
+    """
+    This is a wrapper function that calculates the total separation using
+    greatCircleDist(). This function calculates the psudo in-track lag
+    from the difference in latitude. Need to figure out a sign convention
+    to determine when one is ahead of the other.
+    """
+    dTot = greatCircleDist(X1, X2)
+    
+    A = Re+(X1[:, 2]+X2[:, 2])/2 # Mean altitude
+    dInTrack = np.pi/180*A*(X1[:, 0] - X2[:, 0])
+    dCrossTrack = np.sqrt(dTot**2 - dInTrack**2)
+
+    return dTot, dInTrack, dCrossTrack
 
 def km2lag(d):
     """
@@ -95,7 +114,7 @@ def load_daily_ac6_ephem():
         data['MLT_OPQ'] = np.append(data['MLT_OPQ'], rawAc['MLT_OPQ'])
     return data
 
-def save_dist(times, dists, L_AC, L_FB, MLT_AC, MLT_FB, fPath):
+def save_dist(times, dInTrack, dCrossTrack, L_AC, L_FB, MLT_AC, MLT_FB, fPath):
     """
     given a time array t and distance array d, this function saves that data
     to a csv file given by fPath.
@@ -103,28 +122,26 @@ def save_dist(times, dists, L_AC, L_FB, MLT_AC, MLT_FB, fPath):
 
     with open(fPath, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['dateTime', 'distance [km]', 'L_AC6{}'.format(AC_ID), 
+        w.writerow(['dateTime', 'dist_in_track [km]', 'dist_cross_track [km]', 'L_AC6{}'.format(AC_ID), 
                     'L_FU{}'.format(FB_ID), 'MLT_AC6{}'.format(AC_ID), 
                     'MLT_FU{}'.format(FB_ID)])
 
-        for z in zip(times, dists, L_AC, L_FB, MLT_AC, MLT_FB):
+        for z in zip(times, dInTrack, dCrossTrack, L_AC, L_FB, MLT_AC, MLT_FB):
             w.writerow([*z])
 
 
 ### Load FIREBIRD coordinates ###
-Re=6371 # km
-FB_ID = '4'
+FB_ID = '3'
 AC_ID = 'A'
-DATE_RANGE = [datetime(2018, 2, 26), datetime(2018, 3, 31)]
-
-fbPath = ('./data/FU{}_{}_{}_magephem.csv'.format(
+DATE_RANGE = [datetime(2018, 4, 11), datetime(2018, 6, 11)]
+fbPath = ('./data/FU{}_{}_{}_LLA_magephem_pre.csv'.format(
         FB_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
-acPath = ('./data/AEROCUBE_6{}_{}_{}_LLA_magephem.csv'.format(
+acPath = ('./data/AEROCUBE_6{}_{}_{}_LLA_magephem_pre.csv'.format(
             AC_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
 
 fb = load_ephem(fbPath)
-#ac = load_ephem(acPath)
-ac = load_daily_ac6_ephem()
+ac = load_ephem(acPath)
+#ac = load_daily_ac6_ephem()
 
 ### Now find the same indicies across both data sets ###
 fbT = date2num(fb['dateTime'])
@@ -134,17 +151,18 @@ fbInd = np.where(np.in1d(fbT, acT))[0]
 acInd = np.where(np.in1d(acT, fbT))[0]
 
 ### Calculate separation ###
-X1 = np.array([ac['lat'][acInd], ac['lon'][acInd], ac['alt'][acInd]]).T
-#X1 = np.array([ac['Lat (deg)'][acInd], ac['Lon (deg)'][acInd], ac['Alt (km)'][acInd]]).T
+#X1 = np.array([ac['lat'][acInd], ac['lon'][acInd], ac['alt'][acInd]]).T
+X1 = np.array([ac['Lat (deg)'][acInd], ac['Lon (deg)'][acInd], ac['Alt (km)'][acInd]]).T
 X2 = np.array([fb['Lat (deg)'][fbInd], fb['Lon (deg)'][fbInd], fb['Alt (km)'][fbInd]]).T
-d = greatCircleDist(X1, X2)
+#d = greatCircleDist(X1, X2)
+d, dInTrack, dCrossTrack = calcSep(X1, X2)
 
 ### Save distance data ###
-save_dist(fb['dateTime'][fbInd], d, ac['Lm_OPQ'][acInd], 
-            fb['Lm_T89'][fbInd], ac['MLT_OPQ'][acInd], 
+save_dist(fb['dateTime'][fbInd], dInTrack, dCrossTrack, ac['Lm_T89'][acInd], 
+            fb['Lm_T89'][fbInd], ac['MLT_T89'][acInd], 
             fb['MLT_T89'][fbInd],
             '/home/mike/research/leo-lapping-events/data/'
-            '{}_{}_FU{}_AC6{}_dist.csv'.format(
+            '{}_{}_FU{}_AC6{}_dist_2.csv'.format(
             fb['dateTime'][fbInd[0]].date(), 
             fb['dateTime'][fbInd[-1]].date(), 
             FB_ID, AC_ID))
@@ -161,6 +179,6 @@ ax[0].set_title('{}-{} | FU{}-AC6{} total separation'.format(
 ax[0].set_xlabel('UTC')
 ax[0].set_ylabel('Separation [km]')
 
-ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_OPQ'][acInd]-fb['Lm_T89'][fbInd]))
+ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_T89'][acInd]-fb['Lm_T89'][fbInd]))
 ax[1].set(ylabel='dL', ylim=(0, 3))
 plt.show()
