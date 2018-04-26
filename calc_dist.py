@@ -41,17 +41,20 @@ class CalcDist():
         """
         This is a wrapper function that calculates the total separation using
         greatCircleDist(). This function calculates the psudo in-track lag
-        from the difference in latitude. Need to figure out a sign convention
-        to determine when one is ahead of the other.
+        from the difference in latitude. Positive in-track separation implies 
+        that you add the lag (or separation) to spacecraft B. 
         """
         # Format inputs for haversine method.
         X1 = np.array([self.acEphem['lat'], self.acEphem['lon'], self.acEphem['alt']]).T
         X2 = np.array([self.fbEphem['lat'], self.fbEphem['lon'], self.fbEphem['alt']]).T
         
+        direction = np.convolve([-0.5, 0.5], self.acEphem['lat'], mode='same')
+        
         self.dTot = self._haversine(X1, X2) # Get total distance
         A = Re+(X1[:, 2]+X2[:, 2])/2 # Mean altitude
         # Find a rough fraction of total distance that is in-track.
-        self.dInTrack = np.pi/180*A*(X1[:, 0] - X2[:, 0]) 
+        
+        self.dInTrack = np.pi/180*A*(X1[:, 0] - X2[:, 0])*np.sign(sirection)
         # Use Pathagorean theorem to calculate the cross-track separation.
         self.dCrossTrack = np.sqrt(self.dTot**2 - self.dInTrack**2)
         return self.dTot, self.dInTrack, self.dCrossTrack
