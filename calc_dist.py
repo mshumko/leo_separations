@@ -48,13 +48,13 @@ class CalcDist():
         X1 = np.array([self.acEphem['lat'], self.acEphem['lon'], self.acEphem['alt']]).T
         X2 = np.array([self.fbEphem['lat'], self.fbEphem['lon'], self.fbEphem['alt']]).T
         
-        direction = np.convolve([-0.5, 0.5], self.acEphem['lat'], mode='same')
+        direction = np.convolve([0.5, -0.5], self.acEphem['lat'], mode='same')
         
         self.dTot = self._haversine(X1, X2) # Get total distance
         A = Re+(X1[:, 2]+X2[:, 2])/2 # Mean altitude
         # Find a rough fraction of total distance that is in-track.
         
-        self.dInTrack = np.pi/180*A*(X1[:, 0] - X2[:, 0])*np.sign(sirection)
+        self.dInTrack = np.pi/180*A*(X1[:, 0] - X2[:, 0])*np.sign(direction)
         # Use Pathagorean theorem to calculate the cross-track separation.
         self.dCrossTrack = np.sqrt(self.dTot**2 - self.dInTrack**2)
         return self.dTot, self.dInTrack, self.dCrossTrack
