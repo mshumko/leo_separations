@@ -83,19 +83,22 @@ class CalcDist():
         """
 
         """
-        fig, ax = plt.subplots(2, figsize=(10, 8), sharex=True)
-        ax_t = ax[0].twinx()
+        fig, ax = plt.subplots(3, figsize=(10, 8), sharex=True)
+        ax_t = ax[1].twinx()
 
-        ax[0].plot(fb['dateTime'][fbInd], d)
-        ax_t.plot(fb['dateTime'][fbInd], d/7.5) # Assuming a 7.5 km/s orbital velocity
-        ax_t.set_ylabel('In-track lag [s] (assuming no cross-track)')
-        ax[0].set_title('{}-{} | FU{}-AC6{} total separation'.format(
-            DATE_RANGE[0].date(), DATE_RANGE[1].date(), FB_ID, AC_ID))
-        ax[0].set_xlabel('UTC')
-        ax[0].set_ylabel('Separation [km]')
-
-        ax[1].plot(fb['dateTime'][fbInd], np.abs(ac['Lm_T89'][acInd]-fb['Lm_T89'][fbInd]))
-        ax[1].set(ylabel='dL', ylim=(0, 3))
+        ax[0].plot(self.fbEphem['dateTime'], self.dTot)
+        ax[1].plot(self.fbEphem['dateTime'], self.dInTrack)
+        ax_t.plot(self.fbEphem['dateTime'], self.dInTrack/7.5) # Assuming a 7.5 km/s orbital velocity
+        ax[2].plot(self.fbEphem['dateTime'], self.dCrossTrack)
+        
+        ax[0].set_title('{}-{} | FU{}-AC6{} separation'.format(
+            self.startDate.date(), self.endDate.date(), self.fb_id, self.ac_id))
+        ax[0].set_ylabel('total separation [km]')
+        ax[1].set_ylabel('in-track separation [km]')
+        ax[2].set(ylabel='cross-track separation [km]')
+        ax_t.set_ylabel('In-track lag [s]')
+        ax[-1].set_xlabel('UTC')
+        
         return
 
     def _load_mike_ephem(self, fPath):
@@ -198,4 +201,6 @@ if __name__ == '__main__':
                 DATE_RANGE[0].date(), DATE_RANGE[1].date(), FB_ID, AC_ID))
     c = CalcDist(FB_ID, AC_ID, *DATE_RANGE, fbPath, acPath)
     c.calc_dist()
-    c.save_file(saveDir)
+    #c.save_file(saveDir)
+    c.plot_dist()
+    plt.show()
