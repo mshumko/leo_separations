@@ -17,7 +17,8 @@ sys.path.insert(0, '/home/mike/research/mission-tools/ac6')
 import read_ac_data
 
 class Lap():
-    def __init__(self, sepPath, fb_id, ac_id, fbDir=None, acDir=None):
+    def __init__(self, sepPath, fb_id, ac_id, fbDir=None, acDir=None,
+                 startDate=None, endDate=None):
         """
         This class handles the data management and plotting of the 
         FIREBIRD-II - AC6 lapping events. This class needs 
@@ -29,6 +30,9 @@ class Lap():
         self.ac_id = ac_id
         self.fbDir = fbDir
 
+        self.startDate = startDate
+        self.endDate = endDate
+
         if self.fbDir is None:
             self.fbDir = ('/home/mike/research/firebird/Datafiles/'
                         'FU_{}/hires/level2/'.format(self.fb_id))
@@ -36,11 +40,16 @@ class Lap():
         self._load_sep(sepPath) # Load separation file.
         return
 
-    def plot_lap_event(self, tRange, acDtype='10Hz'):
+    def plot_lap_event(self, tRange, acDtype='10Hz', lag=None):
         """ This method makes the lapping event plot between FB and AC6 """
         self._load_fb_data(tRange)
         self._load_ac_data(tRange, acDtype)
-        self._match_lat_lag(tRange)
+        if lag is None:
+            # Only implement the lag for start of run, and implement 
+            # the end time later.
+            self.ac_time_lag, _ = self._get_ac6_lag(tRange) 
+        else:
+            self.ac_time_lag = lag
 
         fig, ax = plt.subplots(3, figsize=(8, 9))
         self._plot_fb(tRange, ax[0], axPos=ax[2])
@@ -56,9 +65,9 @@ class Lap():
 
         # Set xlims for all subplots
         ax[0].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
-        ax[1].set_xlim([timedelta(seconds=self.ac_time_lag+self.fb_time_shift) + t for t in tRange])
-        ax[2].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
-        ax[2].legend()
+        ax[1].set_xlim([timedelta(seconds=self.ac_time_lag) + t for t in tRange]) # +self.fb_time_shift
+        #ax[2].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
+        #ax[2].legend()
         # for a in ax[1:]:
         #     a.set_xlim(tRange)
         for a in ax: # Format time stamps for all subplots
@@ -66,15 +75,23 @@ class Lap():
             a.xaxis.set_major_formatter(myFmt)
         return
 
+    def plot_lap_events(self):
+        """
+        This method is similar to plot_lap_event, but it automatically
+        sifts through any HiRes data avaliable between self.startDate 
+        and self.endDate, and plots the AC6-FRIEBIRD data for those
+        times, with no regard to their separation at that time. 
+        """
+
+        return
+
     def _load_fb_data(self, tRange):
         """ This method loads in the FIREBIRD-II data """
         hrName = 'FU{}_Hires_{}_L2.txt'.format(self.fb_id, tRange[0].date())
         self.hr = spacepy.datamodel.readJSONheadedASCII(
-                            os.path.join(self.fbDir, hrName))#.copy()
-        self.hr["Time"] = spacepy.time.Ticktock(self.hr["Time"]).UTC
+                            os.path.join(self.fbDir, hrName))
+        self.hr['Time'] = spacepy.time.Ticktock(self.hr['Time']).UTC
         self.fb_time_shift = np.mean(self.hr['Count_Time_Correction'])
-        # self.hr['shifted_time'] = np.array([t + timedelta(seconds=self.fb_time_shift)
-        #                             for t in self.hr['Time']])
         return
 
     def _load_ac_data(self, tRange, dType='10Hz'):
@@ -83,52 +100,18 @@ class Lap():
             tRange[0], dType=dType, plot=False)
         return
 
-    def _match_lat_lag(self, tRange):
-        """ 
-        This function will take the AC-6 data, and find the 
-        time lag when the latitudes of the two spacecraft line up.
-        This code caluclates the start lag at the start and end
-        of the interval to check if there were substantial 
-        differences in the time lags.
-        """
-        # Find the first order correction (unsigned)
-        sepInd = np.where(self.sep['dateTime'] > tRange[0])[0][0]
-        self.ac_time_lag = self.sep['d'][sepInd]/7.5
-        #print('Zeroth order time lag', self.ac_time_lag)
-        # Determine the sign of self.ac_time_lag
-        dLatPast = np.where(self.acData['dateTime'] > 
-                    tRange[0] - timedelta(seconds=self.ac_time_lag))[0][0]
-        dLatFuture = np.where(self.acData['dateTime'] > 
-                    tRange[0] + timedelta(seconds=self.ac_time_lag))[0][0]
-        fbSind = np.where(self.hr['Time'] > tRange[0])[0][0]
-        pastDiff = np.abs(self.hr['Lat'][fbSind]-self.acData['lat'][dLatPast])
-        futureDiff = np.abs(self.hr['Lat'][fbSind]-self.acData['lat'][dLatFuture])
-        if pastDiff > futureDiff:
-            self.ac_time_lag *= -1
-            acInd = dLatPast
-        else:
-            acInd = dLatFuture
-        
-        # Now find the higher order correction (signed)
-        self.ac_time_lag = ( self.hr['Time'][fbSind] - 
-            self.acData['dateTime'][acInd] ).total_seconds()
-        #print('First order time lag', self.ac_time_lag)
-        #print(self.hr['Lat'][fbSind], self.acData['lat'][dLatPast], 
-        #            self.acData['lat'][dLatFuture])
-
-        return
-
     def _load_sep(self, fPath):
         """
         This method loads in the separation data file and saves it so self.sep
         """
         with open(fPath) as f:
             r = csv.reader(f)
-            keys = next(r)
+            next(r) # Skip header
             rData = np.array(list(r))
         self.sep = {}
         self.sep['dateTime'] = np.array([dateutil.parser.parse(t) for t in rData[:, 0]])
-        self.sep['d'] = np.array([float(f) for f in rData[:, 1]])
+        self.sep['d_in_track'] = np.array([float(f) for f in rData[:, 1]])
+        self.sep['d_cross_track'] = np.array([float(f) for f in rData[:, 2]])
         return
 
     def _plot_fb(self, tRange, axCounts, axPos=None, axL=True):
@@ -147,9 +130,9 @@ class Lap():
         axCounts.legend()
 
         if axPos is not None:
-            axPos.plot(self.hr['Time'][normTind], self.hr['Lon'][normTind], 
-                        label='FU{} Lon'.format(self.fb_id))
-            axPos.set_ylabel('Longitude [deg]')
+            axPos.plot(self.hr['Time'][normTind], self.hr['Lat'][normTind], 
+                        label='FU{} lat'.format(self.fb_id))
+            axPos.set_ylabel('latitude [deg]')
         if axL:
             axL = axCounts.twinx()
             axL.plot(self.hr['Time'], np.abs(self.hr['McIlwainL']), 'k')
@@ -177,88 +160,31 @@ class Lap():
         if axPos is not None:
             shiftedTimes = np.array([timedelta(seconds=-self.ac_time_lag) + t
                             for t in self.acData['dateTime']])
-            axPos.plot(shiftedTimes[validCounts], self.acData['lon'][validCounts], 
-                        label='AC6-{} lon'.format(self.ac_id))
+            axPos.plot(shiftedTimes[validCounts], self.acData['lat'][validCounts], 
+                        label='AC6-{} lat'.format(self.ac_id))
         if axL:
             axL = axCounts.twinx()
             validL = np.where(self.acData['Lm_OPQ'] != -1E31)[0]
             axL.plot(self.acData['dateTime'][validL], self.acData['Lm_OPQ'][validL], 'k')
             axL.set_ylabel('McIlwain L (OPQ) (black curve)')
             axL.set_ylim(3, 10)
-        
         return
 
-def getLapTimes(fb_id, ac_id):
-    if fb_id == 3 and ac_id == 'A':
-        lapTimes = {
-                # March 19th
-                '20180319T0048':{'tRange':[datetime(2018, 3, 19, 0, 48, 41), 
-                                        datetime(2018, 3, 19, 0, 54, 0)]
-                                        },
-                '20180319T0104':{'tRange':[datetime(2018, 3, 19, 1, 3, 30), 
-                                        datetime(2018, 3, 19, 1, 6, 0)]
-                                        },
-                # March 25th
-                '20180325T0105':{'tRange':[datetime(2018, 3, 25, 1, 5, 51), 
-                                        datetime(2018, 3, 25, 1, 8, 30)]
-                                        },
-                # March 26th
-                '20180326T0038':{'tRange':[datetime(2018, 3, 26, 0, 38, 0), 
-                                        datetime(2018, 3, 26, 0, 44, 0)]
-                                        },
-                '20180326T0051':{'tRange':[datetime(2018, 3, 26, 0, 52, 0), 
-                                        datetime(2018, 3, 26, 0, 53, 30)]
-                                        },
-                '20180326T0213':{'tRange':[datetime(2018, 3, 26, 2, 13), 
-                                        datetime(2018, 3, 26, 2, 17)]
-                                        },
-                '20180326T0348':{'tRange':[datetime(2018, 3, 26, 3, 48, 25), 
-                                        datetime(2018, 3, 26, 3, 52)]
-                                        },
-                ### CAMPAIGN 15 ###
-                # April 21st
-                '20180421T1125':{'tRange':[datetime(2018, 4, 21, 11, 25, 0), 
-                                        datetime(2018, 4, 21, 11, 30, 0)]
-                                        },
-                '20180421T1139':{'tRange':[datetime(2018, 4, 21, 11, 38, 0), 
-                                        datetime(2018, 4, 21, 11, 43, 0)]
-                                        },
-                '20180421T1209':{'tRange':[datetime(2018, 4, 21, 12, 9, 0), 
-                                        datetime(2018, 4, 21, 12, 14, 0)]
-                                        },
-                '20180421T1221':{'tRange':[datetime(2018, 4, 21, 12, 21, 0), 
-                                        datetime(2018, 4, 21, 12, 32, 0)]
-                                        },
-
-                # # March 28th
-                # '0328T1257':{'tRange':[datetime(2018, 3, 28, 12, 57, 40), 
-                #                         datetime(2018, 3, 28, 13, 1, 40)]
-                #                         },          
-                }         
-    elif fb_id == 4 and ac_id == 'A':
-        lapTimes= {
-                # February 27th
-                '20180227T0942':{'tRange':[datetime(2018, 2, 27, 9, 42),
-                                        datetime(2018, 2, 27, 9, 38, 27)]
-                                },
-                '20180227T1033':{'tRange':[datetime(2018, 2, 27, 10, 33),
-                                        datetime(2018, 2, 27, 10, 35, 27)]
-                                },
-                # March 1st
-                '20180301T1919':{'tRange':[datetime(2018, 3, 1, 19, 19),
-                                        datetime(2018, 3, 1, 19, 24, 0)]
-                                }
-
-                }
-    else:
-        raise NotImplementedError('No times dict for this spacecraft selection!')
-    return lapTimes
+    def _get_ac6_lag(self, tRange):
+        """
+        This method returns the in-track at the start and end time
+        specified in tRange.
+        """
+        idt = np.where((self.sep['dateTime'] > tRange[0]) & 
+                        (self.sep['dateTime'] < tRange[1]))[0]
+        return self.sep['d_in_track'][idt[0]]/7.5, self.sep['d_in_track'][idt[-1]]/7.5
 
 if __name__ == '__main__':
     acDtype = 'survey'
     fb_id = 3
     ac_id = 'A'
-    dPath = './data/2018-04-11_2018-06-10_FU{}_AC6{}_dist.csv'.format(fb_id, ac_id)
+    dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
+    tRange = [datetime(2018, 4, 21, 11, 39), datetime(2018, 4, 21, 11, 44)]
 
     #for lapTime, value in getLapTimes(fb_id, ac_id).items():
     #    print('Making plot for', lapTime)
@@ -269,9 +195,9 @@ if __name__ == '__main__':
         # plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
         #plt.show()
 
-    value = getLapTimes(fb_id, ac_id)['20180421T1139']
+    #value = getLapTimes(fb_id, ac_id)['20180421T1139']
     l = Lap(dPath, fb_id, ac_id)
-    l.plot_lap_event(value['tRange'], acDtype=acDtype)
+    l.plot_lap_event(tRange, acDtype=acDtype)
 
     plt.tight_layout()
     plt.show()
