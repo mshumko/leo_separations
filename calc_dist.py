@@ -190,7 +190,7 @@ class CalcDist():
                         np.sin(np.deg2rad(X1[:, 1]-X2[:, 1])/2)**2 ))
         return R*s
 if __name__ == '__main__':
-    FB_ID = '3'
+    FB_ID = '4'
     AC_ID = 'A'
     DATE_RANGE = [datetime(2018, 4, 11), datetime(2018, 6, 11)]
     fbPath = ('./data/ephem/FU{}_{}_{}_LLA_magephem_pre.csv'.format(
@@ -201,6 +201,6 @@ if __name__ == '__main__':
                 DATE_RANGE[0].date(), DATE_RANGE[1].date(), FB_ID, AC_ID))
     c = CalcDist(FB_ID, AC_ID, *DATE_RANGE, fbPath, acPath)
     c.calc_dist()
-    #c.save_file(saveDir)
+    c.save_file(saveDir)
     c.plot_dist()
     plt.show()
