@@ -44,11 +44,11 @@ class Lap():
         """ This method makes the lapping event plot between FB and AC6 """
         self._load_fb_data(tRange)
         self._load_ac_data(tRange, acDtype)
-        if lag is None:
-            # Only implement the lag for start of run, and implement 
-            # the end time later.
-            self.ac_time_lag, _ = self._get_ac6_lag(tRange) 
-        else:
+        
+        # Only implement the lag for start of run, and implement 
+        # the end time later.
+        (self.ac_time_lag, _, start_cross_track, _) = self._get_ac6_lag(tRange) 
+        if lag is not None:
             self.ac_time_lag = lag
 
         fig, ax = plt.subplots(3, figsize=(8, 9))
@@ -56,10 +56,11 @@ class Lap():
         self._plot_ac(tRange, ax[1], axPos=ax[2])
 
         ### Plot Adjustments ###
-        titleStr = ('FU{} - AC6{} Lapping event | {} | {} s lag ({} km)').format(
+        titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km) | cross-track={} km').format(
                                     self.fb_id, self.ac_id, tRange[0].date(), 
-                                    round(np.abs(self.ac_time_lag), 1), 
-                                    round(np.abs(self.ac_time_lag)*7.5, 1))
+                                    round(self.ac_time_lag, 1), 
+                                    round(np.abs(self.ac_time_lag)*7.5, 1),
+                                    round(start_cross_track, 2))
         ax[0].set_title(titleStr)
         ax[-1].set_xlabel('UTC')
 
@@ -177,27 +178,21 @@ class Lap():
         """
         idt = np.where((self.sep['dateTime'] > tRange[0]) & 
                         (self.sep['dateTime'] < tRange[1]))[0]
-        return self.sep['d_in_track'][idt[0]]/7.5, self.sep['d_in_track'][idt[-1]]/7.5
+        start_in_track = self.sep['d_in_track'][idt[0]]/7.5
+        end_in_track = self.sep['d_in_track'][idt[-1]]/7.5
+        start_cross_track = self.sep['d_cross_track'][idt[0]]
+        end_cross_track = self.sep['d_cross_track'][idt[-1]]
+        return start_in_track, end_in_track, start_cross_track, end_cross_track
 
 if __name__ == '__main__':
     acDtype = 'survey'
-    fb_id = 3
+    fb_id = 4
     ac_id = 'A'
     dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
-    tRange = [datetime(2018, 4, 21, 11, 39), datetime(2018, 4, 21, 11, 44)]
+    tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
 
-    #for lapTime, value in getLapTimes(fb_id, ac_id).items():
-    #    print('Making plot for', lapTime)
-        # l = Lap(dPath, fb_id, ac_id)
-        # l.plot_lap_event(value['tRange'], acDtype=acDtype)
-
-        # plt.tight_layout()
-        # plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
-        #plt.show()
-
-    #value = getLapTimes(fb_id, ac_id)['20180421T1139']
     l = Lap(dPath, fb_id, ac_id)
-    l.plot_lap_event(tRange, acDtype=acDtype)
+    l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
 
     plt.tight_layout()
     plt.show()
