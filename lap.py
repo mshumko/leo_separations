@@ -42,7 +42,9 @@ class Lap():
 
     def plot_lap_event(self, tRange, acDtype='10Hz', lag=None):
         """ This method makes the lapping event plot between FB and AC6 """
-        self._load_fb_data(tRange)
+        if not hasattr(self, 'hr'):
+            self._load_fb_data(tRange)
+            print('Loading single day HiRes')
         self._load_ac_data(tRange, acDtype)
         
         # Only implement the lag for start of run, and implement 
@@ -76,14 +78,34 @@ class Lap():
             a.xaxis.set_major_formatter(myFmt)
         return
 
-    def plot_lap_events(self):
+    def plot_lap_events(self, saveDir=None, acDtype='10Hz'):
         """
         This method is similar to plot_lap_event, but it automatically
         sifts through any HiRes data avaliable between self.startDate 
         and self.endDate, and plots the AC6-FRIEBIRD data for those
         times, with no regard to their separation at that time. 
         """
+        self._load_all_fb_data()
 
+        if saveDir is None:
+            saveDir = '/home/mike/research/leo-lapping-events/plots/{}/{}/'.format(
+                            datetime.now().date(), acDtype)
+        if not os.path.exists(saveDir):
+            os.makedirs(saveDir)
+            print('Made directory at', saveDir)
+
+        # Find all of the start/end times.
+        dt = (self.hr['Time'][1:] - self.hr['Time'][:-1])
+        tJump = np.where(dt > timedelta(minutes=1))[0]
+        idt = sorted(np.concatenate((tJump, tJump+1, [0], [len(self.hr['Time'])-1] )))
+
+        # Now loop over the HiRes times and call the plot_lap_event() function.
+        for (i, j) in zip(idt[::2], idt[1::2]):
+            self.fb_time_shift = self.hr['Count_Time_Correction'][i]
+            self.plot_lap_event([self.hr['Time'][i], self.hr['Time'][j]], acDtype=acDtype)
+            saveDate = self.hr['Time'][i].isoformat().replace(':', '').replace('-', '')
+            saveName = '{}_FU{}_AC6{}_lap.png'.format(saveDate, self.fb_id, self.ac_id)
+            plt.savefig(os.path.join(saveDir, saveName))
         return
 
     def _load_fb_data(self, tRange):
@@ -93,6 +115,30 @@ class Lap():
                             os.path.join(self.fbDir, hrName))
         self.hr['Time'] = spacepy.time.Ticktock(self.hr['Time']).UTC
         self.fb_time_shift = np.mean(self.hr['Count_Time_Correction'])
+        return
+
+    def _load_all_fb_data(self):
+        """
+        This method will load in the HiRes data betwee startDate
+        """
+        # Load in the FIREBIRD HiRes data between specified time range, and find all HiRes times.
+        days = [self.startDate + timedelta(days=i) for i in range((self.endDate-self.startDate).days)]
+        self.hr = {'Time':np.array([]), 'Count_Time_Correction':np.array([]), 
+                    'Col_counts':np.nan*np.ones((0, 6), dtype=int), 'Lat':np.array([]), 
+                    'Lon':np.array([]), 'McIlwainL':np.array([]), 'MLT':np.array([])}
+        for day in days:
+            hrName = 'FU{}_Hires_{}_L2.txt'.format(self.fb_id, day.date())
+            try:
+                hrTemp = spacepy.datamodel.readJSONheadedASCII(
+                                    os.path.join(self.fbDir, hrName))
+            except FileNotFoundError: # If no file found, move on.
+                continue
+
+            hrTemp['Time'] = spacepy.time.Ticktock(hrTemp['Time']).UTC
+
+            for key in filter(lambda x: x != 'Col_counts', self.hr):
+                self.hr[key] = np.append(self.hr[key], hrTemp[key])      
+            self.hr['Col_counts'] = np.concatenate((self.hr['Col_counts'], hrTemp['Col_counts']))
         return
 
     def _load_ac_data(self, tRange, dType='10Hz'):
@@ -124,9 +170,9 @@ class Lap():
             (self.hr['Time'] < tRange[1]-timedelta(seconds=self.fb_time_shift)))[0]
         fbTimes = np.array([t+timedelta(seconds=self.fb_time_shift) 
                             for t in self.hr['Time'][normTind]])
-        for E, Elabel in enumerate(self.hr['Col_counts'].attrs['ELEMENT_LABELS']):
+        for E in range(6):
             axCounts.plot(fbTimes, self.hr['Col_counts'][normTind, E],
-                    label=Elabel)
+                    label='ch{}'.format(E))
         axCounts.set(ylabel='FU{} counts/bin'.format(self.fb_id), yscale='log')
         axCounts.legend()
 
@@ -186,14 +232,18 @@ class Lap():
 
 if __name__ == '__main__':
     acDtype = 'survey'
-    fb_id = 4
+    fb_id = 3
     ac_id = 'A'
     dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
     tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
+    START_DATE = datetime(2018, 4, 19)
+    END_DATE = datetime.now()
 
-    l = Lap(dPath, fb_id, ac_id)
-    l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
+    l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
+    l.plot_lap_events(acDtype='survey')
+    l.plot_lap_events(acDtype='10Hz')
+    #l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
 
-    plt.tight_layout()
-    plt.show()
+    #plt.tight_layout()
+    #plt.show()
     #plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
