@@ -49,7 +49,7 @@ class Lap():
         
         # Only implement the lag for start of run, and implement 
         # the end time later.
-        (self.ac_time_lag, _, start_cross_track, _) = self._get_ac6_lag(tRange) 
+        self.ac_time_lag = self._get_bounds(tRange) 
         if lag is not None:
             self.ac_time_lag = lag
 
@@ -58,17 +58,19 @@ class Lap():
         self._plot_ac(tRange, ax[1], axPos=ax[2])
 
         ### Plot Adjustments ###
-        titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km) | cross-track={} km').format(
-                                    self.fb_id, self.ac_id, tRange[0].date(), 
-                                    round(self.ac_time_lag, 1), 
-                                    round(np.abs(self.ac_time_lag)*7.5, 1),
-                                    round(start_cross_track, 2))
-        ax[0].set_title(titleStr)
+        #titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km)').format(
+        #                            self.fb_id, self.ac_id, tRange[0].date(), 
+        #                            round(self.ac_time_lag, 1), 
+        #                            round(np.abs(self.ac_time_lag)*7.5, 1)
+        #                            )
+        #ax[0].set_title(titleStr)
         ax[-1].set_xlabel('UTC')
 
         # Set xlims for all subplots
-        ax[0].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
-        ax[1].set_xlim([timedelta(seconds=self.ac_time_lag) + t for t in tRange]) # +self.fb_time_shift
+        #ax[0].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
+        ax[0].set_xlim(*self.fbBounds)
+        ax[1].set_xlim(*self.ac6Bounds)
+        #ax[1].set_xlim([timedelta(seconds=self.ac_time_lag) + t for t in tRange]) # +self.fb_time_shift
         #ax[2].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
         #ax[2].legend()
         # for a in ax[1:]:
@@ -195,8 +197,8 @@ class Lap():
         # Plot dosimiter counts
         for key in ['dos1rate', 'dos2rate', 'dos3rate']:
             validCounts = np.where((self.acData[key] != -1E31) & 
-                            (self.acData['dateTime'] > tRange[0]+timedelta(seconds=self.ac_time_lag)) & 
-                            (self.acData['dateTime'] < tRange[1]+timedelta(seconds=self.ac_time_lag)) )[0]
+                            (self.acData['dateTime'] > self.ac_time_lag[0]) & 
+                            (self.acData['dateTime'] < self.ac_time_lag[1]) )[0]
             axCounts.plot(self.acData['dateTime'][validCounts], 
                         self.acData[key][validCounts],
                         label=key)
@@ -204,11 +206,11 @@ class Lap():
         axCounts.set_ylabel('Dos rate [counts/s]')
         axCounts.legend()
         # Plot position
-        if axPos is not None:
-            shiftedTimes = np.array([timedelta(seconds=-self.ac_time_lag) + t
-                            for t in self.acData['dateTime']])
-            axPos.plot(shiftedTimes[validCounts], self.acData['lat'][validCounts], 
-                        label='AC6-{} lat'.format(self.ac_id))
+        #if axPos is not None:
+            #shiftedTimes = np.array([timedelta(seconds=-self.ac_time_lag) + t
+            #                for t in self.acData['dateTime']])
+            #axPos.plot(shiftedTimes[validCounts], self.acData['lat'][validCounts], 
+            #            label='AC6-{} lat'.format(self.ac_id))
         if axL:
             axL = axCounts.twinx()
             validL = np.where(self.acData['Lm_OPQ'] != -1E31)[0]
@@ -217,18 +219,62 @@ class Lap():
             axL.set_ylim(3, 10)
         return
 
-    def _get_ac6_lag(self, tRange):
+    def _get_bounds(self, tRange, thresh=180):
         """
-        This method returns the in-track at the start and end time
-        specified in tRange.
+        This method uses the in-track lag value along with the MagEphem
+        file to match up L shells and return times when AC6 crossed the
+        same L shells as FIREBIRD did (defined by tRange). I should soon
+        implement the OPQ model for FIREBIRD for a direct model comparison. 
         """
+        # Calculate FIREBIRD start/end L shells
+        fbIdt = np.where((self.hr['Time'] > tRange[0]) & 
+                        (self.hr['Time'] < tRange[1]))[0]
+        for i in fbIdt:
+            if np.abs(self.hr['McIlwainL'][i]) != 1E31:
+                fbStartL = self.hr['McIlwainL'][i]
+                fbStartI = i
+                break
+        for i in reversed(fbIdt):
+            if np.abs(self.hr['McIlwainL'][i]) != 1E31:
+                fbEndL = self.hr['McIlwainL'][i]
+                fbEndI = i
+                break
+        self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
+                
+        print('\nFIREBIRD bounds', fbStartL, fbEndL)
+        
+        # Calculate the in-track lag as a first guess for the AC6 times.
         idt = np.where((self.sep['dateTime'] > tRange[0]) & 
                         (self.sep['dateTime'] < tRange[1]))[0]
-        start_in_track = self.sep['d_in_track'][idt[0]]/7.5
-        end_in_track = self.sep['d_in_track'][idt[-1]]/7.5
-        start_cross_track = self.sep['d_cross_track'][idt[0]]
-        end_cross_track = self.sep['d_cross_track'][idt[-1]]
-        return start_in_track, end_in_track, start_cross_track, end_cross_track
+        tLag = self.sep['d_in_track'][idt[0]]/7.5
+        # Get AC6 L shells around this time with a window.
+        id6t = np.where((self.acData['dateTime'] > tRange[0] + timedelta(seconds=tLag) - 
+                        timedelta(seconds=thresh)) & 
+                        (self.acData['dateTime'] < tRange[1] + timedelta(seconds=tLag) +
+                        timedelta(seconds=thresh)))[0]
+        ac6L = self.acData['Lm_OPQ'][id6t]
+        ac6L[ac6L == -1E31] = np.nan # Replace IRBEM error values with nans.
+        # Calculate where AC6 L crosses FIREBIRD's L shells.
+        acStartL = np.nanargmin(np.abs(ac6L - fbStartL))
+        acEndL = np.nanargmin(np.abs(ac6L - fbEndL))
+        self.ac6Bounds = [self.acData['dateTime'][id6t[0] + acStartL], 
+                          self.acData['dateTime'][id6t[0] + acEndL]]
+        print('AC6 bounds', self.acData['Lm_OPQ'][id6t[0] + acStartL], 
+                            self.acData['Lm_OPQ'][id6t[0] + acEndL])
+        # If the difference in the bounds is > 1, then reevaluate FIREBIRD bounds
+        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acStartL] - fbStartL) > 1:
+            fbStartI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
+                                self.acData['Lm_OPQ'][id6t[0]+acStartL]))
+            self.fbBounds[0] = self.hr['Time'][fbStartI+fbIdt[0]]
+            print('New FB start L =', self.hr['McIlwainL'][fbStartI+fbIdt[0]])
+            
+        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acEndL] - fbEndL) > 1:
+            fbEndI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
+                                self.acData['Lm_OPQ'][id6t[0]+acEndL]))
+            self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]
+            print('New FB end L =', self.hr['McIlwainL'][fbEndI+fbIdt[0]])
+               
+        return [self.acData['dateTime'][id6t[0] + acStartL], self.acData['dateTime'][id6t[0] + acEndL]]
 
 if __name__ == '__main__':
     acDtype = 'survey'
@@ -241,7 +287,7 @@ if __name__ == '__main__':
 
     l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
     l.plot_lap_events(acDtype='survey')
-    l.plot_lap_events(acDtype='10Hz')
+    #l.plot_lap_events(acDtype='10Hz')
     #l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
 
     #plt.tight_layout()
