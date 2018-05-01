@@ -326,8 +326,3 @@ if __name__ == '__main__':
     #plt.close()
     l.plot_lap_events(acDtype='10Hz')
     #plt.show()
-    #l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
-
-    #plt.tight_layout()
-    #plt.show()
-    #plt.savefig('./plots/{}/{}_FU{}-AC6{}_{}_lap_event.png'.format(acDtype, lapTime, fb_id, ac_id, acDtype))
