@@ -46,7 +46,14 @@ class Lap():
         if not hasattr(self, 'hr'):
             self._load_fb_data(tRange)
             print('Loading single day HiRes')
-        self._load_ac_data(tRange, acDtype)
+        try:
+            self._load_ac_data(tRange, acDtype)
+        except AssertionError as err:
+            if ('None or > 1 AC6 files found in' in str(err) 
+                            or 'File is empty'  in str(err)):
+                return -1
+            else:
+                raise
         
         # Only implement the lag for start of run, and implement 
         # the end time later.
@@ -229,7 +236,7 @@ class Lap():
             axL.set_ylim(0, 12)
         return
 
-    def _get_bounds(self, tRange, thresh=60):
+    def _get_bounds(self, tRange, thresh=60, verbose=True):
         """
         This method uses the in-track lag value along with the MagEphem
         file to match up L shells and return times when AC6 crossed the
@@ -254,12 +261,18 @@ class Lap():
         # Calculate the in-track lag as a first guess for the AC6 times.
         idt = np.where((self.sep['dateTime'] > tRange[0]) & 
                         (self.sep['dateTime'] < tRange[1]))[0]
+        if len(idt) == 0:
+            print('No separation datetimes found between {} and {}'.format(*tRange))
+            return -1
         tLag = self.sep['d_in_track'][idt[0]]/7.5
         # Get AC6 L shells around this time with a window.
         id6t = np.where((self.acData['dateTime'] > tRange[0] + timedelta(seconds=tLag) - 
                         timedelta(seconds=thresh)) & 
                         (self.acData['dateTime'] < tRange[1] + timedelta(seconds=tLag) +
                         timedelta(seconds=thresh)))[0]
+        if len(id6t) == 0:
+            return -1
+        #print('len id6t=', len(id6t))
         ac6L = self.acData['Lm_OPQ'][id6t]
         ac6L[ac6L == -1E31] = np.nan # Replace IRBEM error values with nans.
         # Calculate where AC6 L crosses FIREBIRD's L shells.
@@ -268,21 +281,35 @@ class Lap():
             acEndL = np.nanargmin(np.abs(ac6L - fbEndL))
         except ValueError:
             return -1
+        # If the values are the same, then there is no overlap in the L shell values.
+        if acStartL == acEndL:
+            return -1
+        if verbose:
+            print('For time period:', tRange)
+            print('FIREBIRD start L bounds', fbStartL, fbEndL)
+            print('AC6 L bounds', self.acData['Lm_OPQ'][id6t[0] + acStartL], 
+                                self.acData['Lm_OPQ'][id6t[0] + acEndL])
         
         self.ac6Bounds = [self.acData['dateTime'][id6t[0] + acStartL], 
                           self.acData['dateTime'][id6t[0] + acEndL]]
         
         # If the difference in the bounds is > 1 (no AC6 data to that high of L 
         # shell, then recalculate the FIREBIRD bounds
-        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acStartL] - fbStartL) > 1:
-            fbStartI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
+        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acStartL] - fbStartL) > 0.5:
+            fbStartI = np.nanargmin(np.abs(np.abs(self.hr['McIlwainL'][fbIdt]) - 
                                 self.acData['Lm_OPQ'][id6t[0]+acStartL]))
             self.fbBounds[0] = self.hr['Time'][fbStartI+fbIdt[0]] 
+            if verbose:
+                print('New FIREBIRD start L', 
+                        self.hr['McIlwainL'][fbStartI+fbIdt[0]] )
             
-        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acEndL] - fbEndL) > 1:
-            fbEndI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
+        if np.abs(self.acData['Lm_OPQ'][id6t[0]+acEndL] - fbEndL) > 0.5:
+            fbEndI = np.nanargmin(np.abs(np.abs(self.hr['McIlwainL'][fbIdt]) - 
                                 self.acData['Lm_OPQ'][id6t[0]+acEndL]))
-            self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]     
+            self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]] 
+            if verbose:
+                print('New FIREBIRD end L', 
+                self.hr['McIlwainL'][fbEndI+fbIdt[0]] )  
         return
         
     def _calc_mag_pos(self, lat, lon, alt, time):
@@ -313,14 +340,16 @@ class Lap():
         return np.abs(fbMLT-acMLT)           
 
 if __name__ == '__main__':
-    acDtype = 'survey'
-    fb_id = 4
+    fb_id = 3
     ac_id = 'A'
-    dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
-    #tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
-    START_DATE = datetime(2018, 4, 19)
-    END_DATE = datetime.now()
+    START_DATE = datetime(2018, 4, 11)
+    END_DATE = datetime(2018, 6, 11)
+    #dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
+    #START_DATE = datetime(2018, 4, 19)
+    #END_DATE = datetime.now()
 
+    dPath = './data/dist/{}_{}_FU{}_AC6{}_dist_v2.csv'.format(
+                    START_DATE.date(), END_DATE.date(), fb_id, ac_id)
     l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
     l.plot_lap_events(acDtype='survey')
     #plt.close()

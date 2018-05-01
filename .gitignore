@@ -1,4 +1,6 @@
 /plots/*.png
 /plots/10hz/*.png
 /plots/survey/*.png
-/plots/*
+/plots/*__pycache__/*
+__pycache__/
+plots
