@@ -49,34 +49,30 @@ class Lap():
         
         # Only implement the lag for start of run, and implement 
         # the end time later.
-        self.ac_time_lag = self._get_bounds(tRange) 
+        self._get_bounds(tRange) 
         if lag is not None:
             self.ac_time_lag = lag
+        in_track_lag = (self.fbBounds[0] - self.ac6Bounds[0]).total_seconds()
 
-        fig, ax = plt.subplots(3, figsize=(8, 9))
-        self._plot_fb(tRange, ax[0], axPos=ax[2])
-        self._plot_ac(tRange, ax[1], axPos=ax[2])
-
+        fig, ax = plt.subplots(2, figsize=(8, 9))
+        self._plot_fb(tRange, ax[0])
+        self._plot_ac(tRange, ax[1])
+        
         ### Plot Adjustments ###
-        #titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km)').format(
-        #                            self.fb_id, self.ac_id, tRange[0].date(), 
-        #                            round(self.ac_time_lag, 1), 
-        #                            round(np.abs(self.ac_time_lag)*7.5, 1)
-        #                            )
-        #ax[0].set_title(titleStr)
-        ax[-1].set_xlabel('UTC')
+        titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km)').format(
+                                    self.fb_id, self.ac_id, tRange[0].date(), 
+                                    round(in_track_lag, 1), 
+                                    round(np.abs(in_track_lag)*7.5, 1)
+                                    )
+        ax[0].set_title(titleStr)
+        ax[-1].set_xlabel('UTC [hh:mm]')
 
         # Set xlims for all subplots
-        #ax[0].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
         ax[0].set_xlim(*self.fbBounds)
         ax[1].set_xlim(*self.ac6Bounds)
-        #ax[1].set_xlim([timedelta(seconds=self.ac_time_lag) + t for t in tRange]) # +self.fb_time_shift
-        #ax[2].set_xlim([timedelta(seconds=self.fb_time_shift) + t for t in tRange])
-        #ax[2].legend()
-        # for a in ax[1:]:
-        #     a.set_xlim(tRange)
+        
         for a in ax: # Format time stamps for all subplots
-            myFmt = matplotlib.dates.DateFormatter('%H:%M:%S')
+            myFmt = matplotlib.dates.DateFormatter('%H:%M')
             a.xaxis.set_major_formatter(myFmt)
         return
 
@@ -163,7 +159,7 @@ class Lap():
         self.sep['d_cross_track'] = np.array([float(f) for f in rData[:, 2]])
         return
 
-    def _plot_fb(self, tRange, axCounts, axPos=None, axL=True):
+    def _plot_fb(self, tRange, axCounts, axL=True):
         """ This method plots the FIREBIRD col counts data. """
         normTind = np.where((self.hr['Time'] > tRange[0]) & 
                             (self.hr['Time'] < tRange[1]))[0]
@@ -177,19 +173,14 @@ class Lap():
                     label='ch{}'.format(E))
         axCounts.set(ylabel='FU{} counts/bin'.format(self.fb_id), yscale='log')
         axCounts.legend()
-
-        if axPos is not None:
-            axPos.plot(self.hr['Time'][normTind], self.hr['Lat'][normTind], 
-                        label='FU{} lat'.format(self.fb_id))
-            axPos.set_ylabel('latitude [deg]')
         if axL:
             axL = axCounts.twinx()
             axL.plot(self.hr['Time'], np.abs(self.hr['McIlwainL']), 'k')
             axL.set_ylabel('McIlwain L (T89) (black curve)')
-            axL.set_ylim(3, 10)
+            axL.set_ylim(3, 17)
         return
 
-    def _plot_ac(self, tRange, axCounts, axPos=None, axL=True):
+    def _plot_ac(self, tRange, axCounts, axL=True):
         """
         This method plots the AC6 dosimiter count rates and position 
         in a similar way to _plot_fb()
@@ -197,26 +188,21 @@ class Lap():
         # Plot dosimiter counts
         for key in ['dos1rate', 'dos2rate', 'dos3rate']:
             validCounts = np.where((self.acData[key] != -1E31) & 
-                            (self.acData['dateTime'] > self.ac_time_lag[0]) & 
-                            (self.acData['dateTime'] < self.ac_time_lag[1]) )[0]
+                            (self.acData['dateTime'] > self.ac6Bounds[0]) & 
+                            (self.acData['dateTime'] < self.ac6Bounds[1]) )[0]
             axCounts.plot(self.acData['dateTime'][validCounts], 
                         self.acData[key][validCounts],
                         label=key)
         axCounts.set_yscale('log')
         axCounts.set_ylabel('Dos rate [counts/s]')
         axCounts.legend()
-        # Plot position
-        #if axPos is not None:
-            #shiftedTimes = np.array([timedelta(seconds=-self.ac_time_lag) + t
-            #                for t in self.acData['dateTime']])
-            #axPos.plot(shiftedTimes[validCounts], self.acData['lat'][validCounts], 
-            #            label='AC6-{} lat'.format(self.ac_id))
+        # Plot position 
         if axL:
             axL = axCounts.twinx()
             validL = np.where(self.acData['Lm_OPQ'] != -1E31)[0]
             axL.plot(self.acData['dateTime'][validL], self.acData['Lm_OPQ'][validL], 'k')
             axL.set_ylabel('McIlwain L (OPQ) (black curve)')
-            axL.set_ylim(3, 10)
+            axL.set_ylim(3, 17)
         return
 
     def _get_bounds(self, tRange, thresh=180):
@@ -241,8 +227,6 @@ class Lap():
                 break
         self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
                 
-        print('\nFIREBIRD bounds', fbStartL, fbEndL)
-        
         # Calculate the in-track lag as a first guess for the AC6 times.
         idt = np.where((self.sep['dateTime'] > tRange[0]) & 
                         (self.sep['dateTime'] < tRange[1]))[0]
@@ -259,20 +243,18 @@ class Lap():
         acEndL = np.nanargmin(np.abs(ac6L - fbEndL))
         self.ac6Bounds = [self.acData['dateTime'][id6t[0] + acStartL], 
                           self.acData['dateTime'][id6t[0] + acEndL]]
-        print('AC6 bounds', self.acData['Lm_OPQ'][id6t[0] + acStartL], 
-                            self.acData['Lm_OPQ'][id6t[0] + acEndL])
-        # If the difference in the bounds is > 1, then reevaluate FIREBIRD bounds
+        
+        # If the difference in the bounds is > 1 (no AC6 data to that high of L 
+        # shell, then recalculate the FIREBIRD bounds
         if np.abs(self.acData['Lm_OPQ'][id6t[0]+acStartL] - fbStartL) > 1:
             fbStartI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
                                 self.acData['Lm_OPQ'][id6t[0]+acStartL]))
-            self.fbBounds[0] = self.hr['Time'][fbStartI+fbIdt[0]]
-            print('New FB start L =', self.hr['McIlwainL'][fbStartI+fbIdt[0]])
+            self.fbBounds[0] = self.hr['Time'][fbStartI+fbIdt[0]] 
             
         if np.abs(self.acData['Lm_OPQ'][id6t[0]+acEndL] - fbEndL) > 1:
             fbEndI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
                                 self.acData['Lm_OPQ'][id6t[0]+acEndL]))
             self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]
-            print('New FB end L =', self.hr['McIlwainL'][fbEndI+fbIdt[0]])
                
         return [self.acData['dateTime'][id6t[0] + acStartL], self.acData['dateTime'][id6t[0] + acEndL]]
 
