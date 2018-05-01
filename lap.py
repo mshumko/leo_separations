@@ -50,25 +50,26 @@ class Lap():
         
         # Only implement the lag for start of run, and implement 
         # the end time later.
-        self._get_bounds(tRange) 
+        flag = self._get_bounds(tRange) 
+        if flag == -1: # If no bounds were found.
+            return -1
         if lag is not None:
             self.ac_time_lag = lag
         in_track_lag = (self.fbBounds[0] - self.ac6Bounds[0]).total_seconds()
-        
-        print('\n', tRange, '\n', self.ac6Bounds, '\n', self.fbBounds)
 
         fig, ax = plt.subplots(2, figsize=(8, 9))
         self._plot_fb(tRange, ax[0])
         self._plot_ac(tRange, ax[1])
         
         ### Plot Adjustments ###
-        titleStr = ('FU{} - AC6{} Lapping event | {} \n {} s in-track lag ({} km)').format(
+        titleStr = ('FU{} - AC6{} Lapping event | {}\nL_shell_lag={} s ({} km) | <dMLT>={}').format(
                                     self.fb_id, self.ac_id, tRange[0].date(), 
                                     round(in_track_lag, 1), 
-                                    round(np.abs(in_track_lag)*7.5, 1)
+                                    round(np.abs(in_track_lag)*7.5, 1), 
+                                    round(self._dMLT(), 2)
                                     )
         ax[0].set_title(titleStr)
-        ax[-1].set_xlabel('UTC [hh:mm]')
+        ax[-1].set_xlabel('UTC [hh:mm:ss]')
 
         # Set xlims for all subplots
         #for a in ax:
@@ -77,9 +78,9 @@ class Lap():
         ax[1].set_xlim(*self.ac6Bounds)
         
         for a in ax: # Format time stamps for all subplots
-            myFmt = matplotlib.dates.DateFormatter('%H:%M')
+            myFmt = matplotlib.dates.DateFormatter('%H:%M:%S')
             a.xaxis.set_major_formatter(myFmt)
-        return
+        return 1
 
     def plot_lap_events(self, saveDir=None, acDtype='10Hz'):
         """
@@ -105,8 +106,12 @@ class Lap():
         # Now loop over the HiRes times and call the plot_lap_event() function.
         for (i, j) in zip(idt[::2], idt[1::2]):
             self.fb_time_shift = self.hr['Count_Time_Correction'][i]
-            self.plot_lap_event([self.hr['Time'][i], self.hr['Time'][j]], acDtype=acDtype)
-            saveDate = self.hr['Time'][i].isoformat().replace(':', '').replace('-', '')
+            flag = self.plot_lap_event([self.hr['Time'][i], self.hr['Time'][j]], acDtype=acDtype)
+            if flag != 1:
+                continue
+            plt.tight_layout()
+            saveDate = self.hr['Time'][i].isoformat().replace(
+                                        ':', '').replace('-', '').split('.')[0]
             saveName = '{}_FU{}_AC6{}_lap.png'.format(saveDate, self.fb_id, self.ac_id)
             plt.savefig(os.path.join(saveDir, saveName))
         return
@@ -129,7 +134,8 @@ class Lap():
         self.hr = {'Time':np.array([]), 'Count_Time_Correction':np.array([]), 
                     'Col_counts':np.nan*np.ones((0, 6), dtype=int), 'Lat':np.array([]), 
                     'Lon':np.array([]), 'Alt':np.array([]), 
-                    'McIlwainL':np.array([]), 'MLT':np.array([])}
+                    'McIlwainL':np.array([]), 'MLT':np.array([]), 
+                    'Loss_cone_type':np.array([])}
         for day in days:
             hrName = 'FU{}_Hires_{}_L2.txt'.format(self.fb_id, day.date())
             try:
@@ -189,8 +195,13 @@ class Lap():
         if axL:
             axL = axCounts.twinx()
             axL.plot(self.hr['Time'], np.abs(self.hr['McIlwainL']), 'k')
-            axL.set_ylabel('McIlwain L (OPQ) (black curve)')
-            axL.set_ylim(3, 12)
+            axL.set_ylabel('McIlwain L (OPQ) (solid black)\n '
+                            'Loss Cone Type (dashed black) (0=open, 1=DLC/trapped, 2=BLC)')
+            axL.set_ylim(0, 12)
+            
+            # Plot loss cone type
+            axL.plot(self.hr['Time'], self.hr['Loss_cone_type'], 'k--')
+            
         return
 
     def _plot_ac(self, tRange, axCounts, axL=True):
@@ -215,7 +226,7 @@ class Lap():
             validL = np.where(self.acData['Lm_OPQ'] != -1E31)[0]
             axL.plot(self.acData['dateTime'][validL], self.acData['Lm_OPQ'][validL], 'k')
             axL.set_ylabel('McIlwain L (OPQ) (black curve)')
-            axL.set_ylim(3, 12)
+            axL.set_ylim(0, 12)
         return
 
     def _get_bounds(self, tRange, thresh=60):
@@ -228,7 +239,6 @@ class Lap():
         # Calculate FIREBIRD start/end L shells
         fbIdt = np.where((self.hr['Time'] > tRange[0]) & 
                         (self.hr['Time'] < tRange[1]))[0]
-        print(self.hr['McIlwainL'][fbIdt])
         for i in fbIdt:
             if np.abs(self.hr['McIlwainL'][i]) != 1E31:
                 fbStartL = np.abs(self.hr['McIlwainL'][i])
@@ -239,7 +249,6 @@ class Lap():
                 fbEndL = np.abs(self.hr['McIlwainL'][i])
                 fbEndI = i
                 break
-        print(fbStartL, fbEndL)
         self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
                 
         # Calculate the in-track lag as a first guess for the AC6 times.
@@ -254,8 +263,12 @@ class Lap():
         ac6L = self.acData['Lm_OPQ'][id6t]
         ac6L[ac6L == -1E31] = np.nan # Replace IRBEM error values with nans.
         # Calculate where AC6 L crosses FIREBIRD's L shells.
-        acStartL = np.nanargmin(np.abs(ac6L - fbStartL))
-        acEndL = np.nanargmin(np.abs(ac6L - fbEndL))
+        try:
+            acStartL = np.nanargmin(np.abs(ac6L - fbStartL))
+            acEndL = np.nanargmin(np.abs(ac6L - fbEndL))
+        except ValueError:
+            return -1
+        
         self.ac6Bounds = [self.acData['dateTime'][id6t[0] + acStartL], 
                           self.acData['dateTime'][id6t[0] + acEndL]]
         
@@ -269,9 +282,8 @@ class Lap():
         if np.abs(self.acData['Lm_OPQ'][id6t[0]+acEndL] - fbEndL) > 1:
             fbEndI = np.nanargmin(np.abs(self.hr['McIlwainL'][fbIdt] - 
                                 self.acData['Lm_OPQ'][id6t[0]+acEndL]))
-            self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]
-               
-        return #[self.acData['dateTime'][id6t[0] + acStartL], self.acData['dateTime'][id6t[0] + acEndL]]
+            self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]     
+        return
         
     def _calc_mag_pos(self, lat, lon, alt, time):
         """
@@ -287,20 +299,33 @@ class Lap():
             L[i] = m.make_lstar_output['Lm'][0]
             MLT[i] = m.make_lstar_output['MLT'][0]
         return L, MLT
+        
+    def _dMLT(self):
+        """
+        This method calculates change in MLT during the interval plotted.
+        """
+        fbInd = np.where((self.hr['Time'] > self.fbBounds[0]) &
+                         (self.hr['Time'] < self.fbBounds[1]))[0]
+        acInd = np.where((self.acData['dateTime'] > self.ac6Bounds[0]) &
+                         (self.acData['dateTime'] < self.ac6Bounds[1]))[0] 
+        fbMLT = np.mean(self.hr['MLT'][fbInd])
+        acMLT = np.mean(self.acData['MLT_OPQ'][acInd])
+        return np.abs(fbMLT-acMLT)           
 
 if __name__ == '__main__':
     acDtype = 'survey'
-    fb_id = 3
+    fb_id = 4
     ac_id = 'A'
     dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
-    tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
+    #tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
     START_DATE = datetime(2018, 4, 19)
     END_DATE = datetime.now()
 
     l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
     l.plot_lap_events(acDtype='survey')
-    #plt.show()
+    #plt.close()
     l.plot_lap_events(acDtype='10Hz')
+    #plt.show()
     #l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
 
     #plt.tight_layout()
