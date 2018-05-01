@@ -15,6 +15,7 @@ import spacepy.time
 
 sys.path.insert(0, '/home/mike/research/mission-tools/ac6')
 import read_ac_data
+import IRBEM
 
 class Lap():
     def __init__(self, sepPath, fb_id, ac_id, fbDir=None, acDir=None,
@@ -53,6 +54,8 @@ class Lap():
         if lag is not None:
             self.ac_time_lag = lag
         in_track_lag = (self.fbBounds[0] - self.ac6Bounds[0]).total_seconds()
+        
+        print('\n', tRange, '\n', self.ac6Bounds, '\n', self.fbBounds)
 
         fig, ax = plt.subplots(2, figsize=(8, 9))
         self._plot_fb(tRange, ax[0])
@@ -68,6 +71,8 @@ class Lap():
         ax[-1].set_xlabel('UTC [hh:mm]')
 
         # Set xlims for all subplots
+        #for a in ax:
+        #    a.set_xlim(*tRange)
         ax[0].set_xlim(*self.fbBounds)
         ax[1].set_xlim(*self.ac6Bounds)
         
@@ -123,7 +128,8 @@ class Lap():
         days = [self.startDate + timedelta(days=i) for i in range((self.endDate-self.startDate).days)]
         self.hr = {'Time':np.array([]), 'Count_Time_Correction':np.array([]), 
                     'Col_counts':np.nan*np.ones((0, 6), dtype=int), 'Lat':np.array([]), 
-                    'Lon':np.array([]), 'McIlwainL':np.array([]), 'MLT':np.array([])}
+                    'Lon':np.array([]), 'Alt':np.array([]), 
+                    'McIlwainL':np.array([]), 'MLT':np.array([])}
         for day in days:
             hrName = 'FU{}_Hires_{}_L2.txt'.format(self.fb_id, day.date())
             try:
@@ -136,7 +142,14 @@ class Lap():
 
             for key in filter(lambda x: x != 'Col_counts', self.hr):
                 self.hr[key] = np.append(self.hr[key], hrTemp[key])      
-            self.hr['Col_counts'] = np.concatenate((self.hr['Col_counts'], hrTemp['Col_counts']))
+            self.hr['Col_counts'] = np.concatenate(
+                                    (self.hr['Col_counts'], hrTemp['Col_counts']))
+                                    
+            self.fb_energy = hrTemp['Col_counts'].attrs['ELEMENT_LABELS']
+            
+        # Now run IRBEM.
+        self.hr['McIlwainL'], self.hr['MLT'] = self._calc_mag_pos(self.hr['Lat'],
+                             self.hr['Lon'], self.hr['Alt'], self.hr['Time'])
         return
 
     def _load_ac_data(self, tRange, dType='10Hz'):
@@ -170,14 +183,14 @@ class Lap():
                             for t in self.hr['Time'][normTind]])
         for E in range(6):
             axCounts.plot(fbTimes, self.hr['Col_counts'][normTind, E],
-                    label='ch{}'.format(E))
+                    label='{}'.format(self.fb_energy[E]))
         axCounts.set(ylabel='FU{} counts/bin'.format(self.fb_id), yscale='log')
         axCounts.legend()
         if axL:
             axL = axCounts.twinx()
             axL.plot(self.hr['Time'], np.abs(self.hr['McIlwainL']), 'k')
-            axL.set_ylabel('McIlwain L (T89) (black curve)')
-            axL.set_ylim(3, 17)
+            axL.set_ylabel('McIlwain L (OPQ) (black curve)')
+            axL.set_ylim(3, 12)
         return
 
     def _plot_ac(self, tRange, axCounts, axL=True):
@@ -202,10 +215,10 @@ class Lap():
             validL = np.where(self.acData['Lm_OPQ'] != -1E31)[0]
             axL.plot(self.acData['dateTime'][validL], self.acData['Lm_OPQ'][validL], 'k')
             axL.set_ylabel('McIlwain L (OPQ) (black curve)')
-            axL.set_ylim(3, 17)
+            axL.set_ylim(3, 12)
         return
 
-    def _get_bounds(self, tRange, thresh=180):
+    def _get_bounds(self, tRange, thresh=60):
         """
         This method uses the in-track lag value along with the MagEphem
         file to match up L shells and return times when AC6 crossed the
@@ -215,16 +228,18 @@ class Lap():
         # Calculate FIREBIRD start/end L shells
         fbIdt = np.where((self.hr['Time'] > tRange[0]) & 
                         (self.hr['Time'] < tRange[1]))[0]
+        print(self.hr['McIlwainL'][fbIdt])
         for i in fbIdt:
             if np.abs(self.hr['McIlwainL'][i]) != 1E31:
-                fbStartL = self.hr['McIlwainL'][i]
+                fbStartL = np.abs(self.hr['McIlwainL'][i])
                 fbStartI = i
                 break
         for i in reversed(fbIdt):
             if np.abs(self.hr['McIlwainL'][i]) != 1E31:
-                fbEndL = self.hr['McIlwainL'][i]
+                fbEndL = np.abs(self.hr['McIlwainL'][i])
                 fbEndI = i
                 break
+        print(fbStartL, fbEndL)
         self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
                 
         # Calculate the in-track lag as a first guess for the AC6 times.
@@ -256,7 +271,22 @@ class Lap():
                                 self.acData['Lm_OPQ'][id6t[0]+acEndL]))
             self.fbBounds[1] = self.hr['Time'][fbEndI+fbIdt[0]]
                
-        return [self.acData['dateTime'][id6t[0] + acStartL], self.acData['dateTime'][id6t[0] + acEndL]]
+        return #[self.acData['dateTime'][id6t[0] + acStartL], self.acData['dateTime'][id6t[0] + acEndL]]
+        
+    def _calc_mag_pos(self, lat, lon, alt, time):
+        """
+        This method calculates L and MLT using the Olson and Pfitzer Quiet model.
+        """
+        m = IRBEM.MagFields(kext='OPQ77')
+        L = np.nan*np.ones(len(lat))
+        MLT = np.nan*np.ones(len(lat))
+        
+        for i, (T, LAT, LON, ALT) in enumerate(zip(time, lat, lon, alt)):
+            X = {'dateTime':T, 'x1':ALT, 'x2':LAT, 'x3':LON}
+            m.make_lstar(X, None)
+            L[i] = m.make_lstar_output['Lm'][0]
+            MLT[i] = m.make_lstar_output['MLT'][0]
+        return L, MLT
 
 if __name__ == '__main__':
     acDtype = 'survey'
@@ -269,7 +299,8 @@ if __name__ == '__main__':
 
     l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
     l.plot_lap_events(acDtype='survey')
-    #l.plot_lap_events(acDtype='10Hz')
+    #plt.show()
+    l.plot_lap_events(acDtype='10Hz')
     #l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
 
     #plt.tight_layout()
