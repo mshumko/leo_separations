@@ -236,7 +236,7 @@ class Lap():
             axL.set_ylim(0, 12)
         return
 
-    def _get_bounds(self, tRange, thresh=60, verbose=True):
+    def _get_bounds(self, tRange, thresh=180, verbose=False):
         """
         This method uses the in-track lag value along with the MagEphem
         file to match up L shells and return times when AC6 crossed the
@@ -256,7 +256,10 @@ class Lap():
                 fbEndL = np.abs(self.hr['McIlwainL'][i])
                 fbEndI = i
                 break
-        self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
+        try: # If there are no valid L shells (over the polar cap, gracefully exit)
+            self.fbBounds = [self.hr['Time'][fbStartI], self.hr['Time'][fbEndI]]
+        except UnboundLocalError:
+            return -1
                 
         # Calculate the in-track lag as a first guess for the AC6 times.
         idt = np.where((self.sep['dateTime'] > tRange[0]) & 
@@ -340,18 +343,19 @@ class Lap():
         return np.abs(fbMLT-acMLT)           
 
 if __name__ == '__main__':
-    fb_id = 3
+    #fb_id = 3
     ac_id = 'A'
-    START_DATE = datetime(2018, 4, 11)
-    END_DATE = datetime(2018, 6, 11)
-    #dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
-    #START_DATE = datetime(2018, 4, 19)
-    #END_DATE = datetime.now()
+    for fb_id in [3, 4]:
+        START_DATE = datetime(2018, 4, 11)
+        END_DATE = datetime(2018, 6, 11)
+        #dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
+        #START_DATE = datetime(2018, 4, 19)
+        #END_DATE = datetime.now()
 
-    dPath = './data/dist/{}_{}_FU{}_AC6{}_dist_v2.csv'.format(
-                    START_DATE.date(), END_DATE.date(), fb_id, ac_id)
-    l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
-    l.plot_lap_events(acDtype='survey')
-    #plt.close()
-    l.plot_lap_events(acDtype='10Hz')
-    #plt.show()
+        dPath = './data/dist/{}_{}_FU{}_AC6{}_dist_v2.csv'.format(
+                        START_DATE.date(), END_DATE.date(), fb_id, ac_id)
+        l = Lap(dPath, fb_id, ac_id, startDate=START_DATE, endDate=END_DATE)
+        l.plot_lap_events(acDtype='survey')
+        #plt.close()
+        l.plot_lap_events(acDtype='10Hz')
+    plt.show()
