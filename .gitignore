@@ -1,6 +1,12 @@
 /plots/*.png
 /plots/10hz/*.png
 /plots/survey/*.png
+<<<<<<< HEAD
 /plots/*__pycache__/*
 __pycache__/
 plots
+=======
+/plots/*
+/data/ephem*
+/__pycache__/*
+>>>>>>> 4bdbb7196e365c49e5f850c8730cc9cb3ef3bca9

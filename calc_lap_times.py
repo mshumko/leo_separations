@@ -14,7 +14,7 @@ class LapTimes:
         This method calculates the start and end times when the two
         spacecraft where within thresh km separation.
         """
-        sepInd = np.where(self.sepData['d'] < thresh)[0]
+        sepInd = np.where(np.abs(self.sepData['d']) < thresh)[0]
         sepInd = np.append(sepInd, -9999)
         conv = np.convolve([1, -1], sepInd, mode = 'valid') - 1
         consecutiveFlag = np.where(conv != 0)[0] + 1
@@ -65,16 +65,20 @@ class LapTimes:
             if key == 'dateTime':
                 sepData['dateTime'] = np.array([dateutil.parser.parse(t)
                                 for t in rawData[:, i]])
-            elif 'distance' in key:
-                sepData['d'] = np.array([float(d) for d in rawData[:, i]])  
+            #elif 'dist_in_track' in key:
+            #    sepData['d'] = np.array([float(d) for d in rawData[:, i]])  
             else:
                 sepData[key] = np.array([float(d) for d in rawData[:, i]]) 
+        sepData['d'] = np.sqrt(sepData['dist_in_track [km]']**2 + 
+                        sepData['dist_cross_track [km]']**2)
         return sepData
 
 if __name__ == '__main__':
-    fb_id = 3
-    L = LapTimes(fb_id, '/home/mike/research/leo-lapping-events/data/'
-                '2018-02-26_2018-03-29_FU{}_AC6A_dist.csv'.format(fb_id))
+    from datetime import datetime
+    fb_id = 4
+    dates = [datetime(2018, 7, 27).date(), datetime(2018, 8, 31).date()]
+    L = LapTimes(fb_id, '/home/mike/research/leo-lapping-events/data/dist/'
+                '{}_{}_FU{}_AC6A_dist_v2.csv'.format(*dates, fb_id))
     L.calcLapTimes()
-    L.saveData('./data/FU{}_AC6A_lap_times_camp_14.csv'.format(fb_id))
+    L.saveData('./data/{}_{}_FU{}_AC6A_lap_times.csv'.format(*dates, fb_id))
     
