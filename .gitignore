@@ -3,3 +3,4 @@
 /plots/survey/*.png
 /plots/*
 /data/ephem*
+/__pycache__/*

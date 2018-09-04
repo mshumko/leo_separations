@@ -188,11 +188,20 @@ if __name__ == '__main__':
     acDtype = 'survey'
     fb_id = 4
     ac_id = 'A'
+<<<<<<< Updated upstream
     dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
     tRange = [datetime(2018, 4, 21, 11, 23), datetime(2018, 4, 21, 11, 29)]
 
     l = Lap(dPath, fb_id, ac_id)
     l.plot_lap_event(tRange, acDtype=acDtype, lag=244+40+11*60)
+=======
+    for fb_id in [3, 4]:
+        START_DATE = datetime(2018, 7, 27)
+        END_DATE = datetime(2018, 8, 31)
+        #dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
+        #START_DATE = datetime(2018, 4, 19)
+        #END_DATE = datetime.now()
+>>>>>>> Stashed changes
 
     plt.tight_layout()
     plt.show()
