@@ -346,8 +346,8 @@ if __name__ == '__main__':
     #fb_id = 3
     ac_id = 'A'
     for fb_id in [3, 4]:
-        START_DATE = datetime(2018, 4, 11)
-        END_DATE = datetime(2018, 6, 11)
+        START_DATE = datetime(2018, 7, 27)
+        END_DATE = datetime(2018, 8, 31)
         #dPath = './data/dist/2018-04-11_2018-06-11_FU{}_AC6{}_dist_v2.csv'.format(fb_id, ac_id)
         #START_DATE = datetime(2018, 4, 19)
         #END_DATE = datetime.now()
