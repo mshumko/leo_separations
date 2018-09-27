@@ -75,10 +75,11 @@ class LapTimes:
 
 if __name__ == '__main__':
     from datetime import datetime
-    fb_id = 4
-    dates = [datetime(2018, 7, 27).date(), datetime(2018, 8, 31).date()]
+    fb_id = 3
+    dates = [datetime(2018, 9, 17).date(), 
+            datetime(2018, 10, 17).date()]
     L = LapTimes(fb_id, '/home/mike/research/leo-lapping-events/data/dist/'
                 '{}_{}_FU{}_AC6A_dist_v2.csv'.format(*dates, fb_id))
     L.calcLapTimes()
-    L.saveData('./data/{}_{}_FU{}_AC6A_lap_times.csv'.format(*dates, fb_id))
+    L.saveData('./data/lap_times/{}_{}_FU{}_AC6A_lap_times.csv'.format(*dates, fb_id))
     

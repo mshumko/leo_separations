@@ -190,9 +190,9 @@ class CalcDist():
                         np.sin(np.deg2rad(X1[:, 1]-X2[:, 1])/2)**2 ))
         return R*s
 if __name__ == '__main__':
-    FB_ID = '3'
+    FB_ID = '4'
     AC_ID = 'A'
-    DATE_RANGE = [datetime(2018, 7, 27), datetime(2018, 8, 31)]
+    DATE_RANGE = [datetime(2018, 9, 17), datetime(2018, 10, 17)]
     fbPath = ('./data/ephem/FU{}_{}_{}_magephem.csv'.format(
             FB_ID, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
     acPath = ('./data/ephem/AEROCUBE_6{}_{}_{}_magephem.csv'.format(
