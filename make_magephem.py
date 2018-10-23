@@ -73,17 +73,18 @@ class AppendMagEphem(IRBEM.MagFields):
 
 if __name__ == '__main__':
     from datetime import datetime
-for sc_id in [3, 4]:
-    START_DATE = datetime(2018, 9, 17)
-    END_DATE = datetime(2018, 10, 17)
-    ephemDir = '/home/mike/research/mission-tools/orbit/data/'
-    ephemName = 'AEROCUBE_6A_{}_{}_LLA_ephemeris.csv'.format(
-                   START_DATE.date(), END_DATE.date())
-    #ephemName = 'FU{}_{}_{}_LLA_ephemeris.csv'.format(
-    #                sc_id, START_DATE.date(), END_DATE.date())
-    magephemName = ephemName.split('_')
-    magephemName[-2] = 'magephem'
-    magephemName = '_'.join(magephemName)
-    a = AppendMagEphem(os.path.join(ephemDir, ephemName))
-    a.calc_magephem(maginput={'Kp':20})
-    a.save_magephem(os.path.join('./data', magephemName))
+    for sc_id in ['FU3', 'FU4', 'ELFIN_A']:
+        START_DATE = datetime(2018, 10, 31)
+        END_DATE = datetime(2019, 2, 1)
+        ephemDir = '/home/mike/research/mission-tools/orbit/data/'
+        ephemName = '{}_{}_{}_LLA_ephemeris.csv'.format(
+                       sc_id,
+                       START_DATE.date(),
+                       END_DATE.date())
+        magephemName = ephemName.split('_')
+        magephemName[-1] = 'magephem.csv'
+        magephemName.pop(-2) 
+        magephemName = '_'.join(magephemName)
+        a = AppendMagEphem(os.path.join(ephemDir, ephemName))
+        a.calc_magephem(maginput={'Kp':20})
+        a.save_magephem(os.path.join('./data/ephem/', magephemName))
