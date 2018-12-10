@@ -94,8 +94,8 @@ class LapTimes:
 
 if __name__ == '__main__':
     from datetime import date
-    sc = ['FU3', 'ELFIN_A']
-    dates = [date(2018, 10, 31), date(2019, 2, 1)]
+    sc = ['FU4', 'ELFIN_A']
+    dates = [date(2018, 12, 10), date(2019, 1, 30)]
     L = LapTimes(*sc, '/home/mike/research/leo-lapping-events/data/dist/'
                 '{}_{}_{}_{}_dist_v2.csv'.format(*dates, *sc))
     L.calcLapTimes()

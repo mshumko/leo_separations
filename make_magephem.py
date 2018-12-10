@@ -74,9 +74,9 @@ class AppendMagEphem(IRBEM.MagFields):
 if __name__ == '__main__':
     from datetime import datetime
     for sc_id in ['FU3', 'FU4', 'ELFIN_A']:
-        START_DATE = datetime(2018, 10, 31)
-        END_DATE = datetime(2019, 2, 1)
-        ephemDir = '/home/mike/research/mission-tools/orbit/data/'
+        START_DATE = datetime(2018, 12, 10)
+        END_DATE = datetime(2019, 1, 30)
+        ephemDir = './data/ephem'
         ephemName = '{}_{}_{}_LLA_ephemeris.csv'.format(
                        sc_id,
                        START_DATE.date(),
@@ -87,4 +87,4 @@ if __name__ == '__main__':
         magephemName = '_'.join(magephemName)
         a = AppendMagEphem(os.path.join(ephemDir, ephemName))
         a.calc_magephem(maginput={'Kp':20})
-        a.save_magephem(os.path.join('./data/ephem/', magephemName))
+        a.save_magephem(os.path.join('./data/magephem/', magephemName))
