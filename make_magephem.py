@@ -10,7 +10,10 @@ class AppendMagEphem(IRBEM.MagFields):
     def __init__(self, ephemPath, kext='T89'):
         IRBEM.MagFields.__init__(self, kext=kext)
         self.extModel = kext
-        self._load_ephem(ephemPath)
+        if 'reach' not in ephemPath:
+            self._load_ephem(ephemPath)
+        else:
+            self._load_reach(ephemPath)
         return
 
     def calc_magephem(self, maginput=None):
@@ -70,21 +73,35 @@ class AppendMagEphem(IRBEM.MagFields):
             elif 'Alt' in key:
                 self.eph['Alt'] = np.array([float(i) for i in rawData[:, i]])
         return
+        
+    def _load_reach(self, path):
+        self.eph = pd.read_csv(path)
+        date = path.split('.')[1]
+        self.eph['dateTime'] = pd.to_datetime(date[0:4]) +
+                               pd.to_timedelta(self.eph['DoY']-1, unit='D')
+        self.eph = self.eph.set_index('dateTime')
+        return
 
 if __name__ == '__main__':
-    from datetime import datetime
-    for sc_id in ['FU3', 'FU4', 'ELFIN_A']:
-        START_DATE = datetime(2018, 12, 10)
-        END_DATE = datetime(2019, 1, 30)
-        ephemDir = './data/ephem'
-        ephemName = '{}_{}_{}_LLA_ephemeris.csv'.format(
-                       sc_id,
-                       START_DATE.date(),
-                       END_DATE.date())
-        magephemName = ephemName.split('_')
-        magephemName[-1] = 'magephem.csv'
-        magephemName.pop(-2) 
-        magephemName = '_'.join(magephemName)
-        a = AppendMagEphem(os.path.join(ephemDir, ephemName))
-        a.calc_magephem(maginput={'Kp':20})
-        a.save_magephem(os.path.join('./data/magephem/', magephemName))
+#    from datetime import datetime
+#    for sc_id in ['FU3', 'FU4', 'ELFIN_A']:
+#        START_DATE = datetime(2018, 12, 10)
+#        END_DATE = datetime(2019, 1, 30)
+#        ephemDir = './data/ephem'
+#        ephemName = '{}_{}_{}_LLA_ephemeris.csv'.format(
+#                       sc_id,
+#                       START_DATE.date(),
+#                       END_DATE.date())
+#        magephemName = ephemName.split('_')
+#        magephemName[-1] = 'magephem.csv'
+#        magephemName.pop(-2) 
+#        magephemName = '_'.join(magephemName)
+#        a = AppendMagEphem(os.path.join(ephemDir, ephemName))
+#        a.calc_magephem(maginput={'Kp':20})
+#        a.save_magephem(os.path.join('./data/magephem/', magephemName))
+
+    ephemDir = '/home/mike/research/reach/data'
+    ephemName = 'reach.20190125.vid-169.txt'
+    a = AppendMagEphem(os.path.join(ephemDir, ephemName))
+    a.calc_magephem(maginput={'Kp':20})
+    a.save_magephem(os.path.join('./data/magephem/', magephemName))
