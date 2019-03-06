@@ -4,6 +4,8 @@ import numpy as np
 import os
 import dateutil.parser
 
+import pandas as pd
+
 import IRBEM
 
 class AppendMagEphem(IRBEM.MagFields):
@@ -75,11 +77,19 @@ class AppendMagEphem(IRBEM.MagFields):
         return
         
     def _load_reach(self, path):
+        """
+        
+        """
+        sc_id = path.split('.')[-2].split('-')[1]
         self.eph = pd.read_csv(path)
         date = path.split('.')[1]
-        self.eph['dateTime'] = pd.to_datetime(date[0:4]) +
+        self.eph['dateTime'] = pd.to_datetime(date[0:4]) + \
                                pd.to_timedelta(self.eph['DoY']-1, unit='D')
         self.eph = self.eph.set_index('dateTime')
+        self.eph.rename(index=str, 
+            columns={"ALT km "+sc_id:"Alt",
+                     "LAT deg "+sc_id:"Lat", 
+                     'LON deg '+sc_id:'Lon'})
         return
 
 if __name__ == '__main__':
