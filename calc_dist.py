@@ -194,16 +194,16 @@ class CalcDist():
         return R*s
         
 if __name__ == '__main__':
-    #SC_A = 'FU3'
-    SC_B = 'ELFIN_A'
+    SC_B = 'REACH'
     for SC_A in ['FU3', 'FU4']:
-        DATE_RANGE = [datetime(2018, 12, 10), datetime(2019, 1, 30)]
+        DATE_RANGE = [datetime(2019, 1, 21), datetime(2019, 2, 23)]
         pathA = ('./data/magephem/{}_{}_{}_magephem.csv'.format(
                 SC_A, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
-        pathB = ('./data/magephem/{}_{}_{}_magephem.csv'.format(
-                    SC_B, DATE_RANGE[0].date(), (DATE_RANGE[1]).date()))
-        saveDir = ('./data/dist/{}_{}_{}_{}_dist_v2.csv'.format(
-                    DATE_RANGE[0].date(), DATE_RANGE[1].date(), SC_A, SC_B))
+
+        pathB = ('./data/magephem/reach.20190125.vid-169.magephem.txt')
+
+        saveDir = ('./data/dist/20190125_{}_{}_dist.csv'.format(
+                    SC_A, SC_B))
         c = CalcDist(SC_A, SC_B, *DATE_RANGE, pathA, pathB)
         c.calc_dist()
         c.save_file(saveDir)

@@ -94,11 +94,17 @@ class LapTimes:
 
 if __name__ == '__main__':
     from datetime import date
-    sc = ['FU4', 'ELFIN_A']
-    dates = [date(2018, 12, 10), date(2019, 1, 30)]
+    sc = ['FU3', 'REACH']
+    #dates = [date(2018, 12, 10), date(2019, 1, 30)]
+    # L = LapTimes(*sc, '/home/mike/research/leo-lapping-events/data/dist/'
+    #             '{}_{}_{}_{}_dist_v2.csv'.format(*dates, *sc))
+    # L.calcLapTimes()
+    # L.saveData('./data/lap_times/{}_{}_{}_{}_lap_times.csv'.format(
+    #             *dates, *sc))
+
     L = LapTimes(*sc, '/home/mike/research/leo-lapping-events/data/dist/'
-                '{}_{}_{}_{}_dist_v2.csv'.format(*dates, *sc))
-    L.calcLapTimes()
-    L.saveData('./data/lap_times/{}_{}_{}_{}_lap_times.csv'.format(
-                *dates, *sc))
+                '20190125_{}_REACH_dist.csv'.format(sc[0]))
+    L.calcLapTimes(thresh=1000)
+    L.saveData('./data/lap_times/20190125_{}_REACH_lap_times.csv'.format(
+                sc[0]))
     
